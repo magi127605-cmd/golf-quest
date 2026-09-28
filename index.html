@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ゴルフクエスト</title>
+<meta name="description" content="yamada教材（爆発力トレ・100球メニュー）を守って記録し、段位で見せる。">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#1F5C3A">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ゴルフクエスト">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">ゴルフクエスト <small id="brandSub"></small></div>
+  <div class="top-right" id="topRight"></div>
+</header>
+
+<main id="view" class="view"></main>
+
+<nav class="tabs" id="tabs" hidden>
+  <a href="#home" data-tab="home"><span class="ic">◎</span>現在地</a>
+  <a href="#train" data-tab="train"><span class="ic">①</span>筋トレ</a>
+  <a href="#range" data-tab="range"><span class="ic">②</span>練習場</a>
+  <a href="#measure" data-tab="measure"><span class="ic">③</span>計測</a>
+  <a href="#yamada" data-tab="yamada"><span class="ic">④</span>yamada</a>
+</nav>
+
+<div id="toast" class="toast" hidden></div>
+
+<script src="js/config.js"></script>
+<script src="js/core.js"></script>
+<script src="js/rank.js"></script>
+<script src="js/home.js"></script>
+<script src="js/train.js"></script>
+<script src="js/range.js"></script>
+<script src="js/measure.js"></script>
+<script src="js/yamada.js"></script>
+<script src="js/settings.js"></script>
+<script src="js/boot.js"></script>
+</body>
+</html>
