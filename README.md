@@ -29,7 +29,8 @@ yamada有料note（爆発力トレ・100球メニュー）を「守らせて・�
 `.claude/launch.json` の `golf-app`（python http.server 8766）。http://127.0.0.1:8766/
 
 ## 公開
-GitHub Pages（公開リポ `magi127605-cmd/golf-quest`、検索非表示）。更新は `sw.js` の `VERSION` と `js/config.js` の `version` を上げてから push。
+**https://magi127605-cmd.github.io/golf-quest/**（公開リポ `magi127605-cmd/golf-quest`、検索非表示）。
+更新手順: `sw.js` の `VERSION` と `js/config.js` の `version` を上げる → このフォルダを公開用の控え（`%TEMP%\claude\golf-quest-publish`。無ければ `git clone` し直す）にコピー → `spec-draft.md` `claims.md` `tools/` は入れない → push。
 
 ## 運用（yamada側）
 - 朝6:30／夜21:00: `golf_quest_admin.py questions` → 教材範囲は自動回答、範囲外は `hold`

@@ -33,9 +33,11 @@
   function adherence(data, wk) {
     const m = data.member || {}, plan = Object.assign({ explosive: 2, range: 1, big3: 0 }, m.plan || {});
     const ws = data.workouts.filter(w => G.weekKey(w.done_at) === wk), rs = data.ranges.filter(r => G.weekKey(r.done_at) === wk);
-    const done = { explosive: ws.filter(w => w.kind === 'explosive').length, range: rs.filter(r => r.completed).length, big3: ws.filter(w => w.kind === 'big3').length };
+    const prog = G.program ? G.program.active(data) : null;
+    if (prog) plan.custom = Object.keys(prog.spec.plan || {}).length;
+    const done = { explosive: ws.filter(w => w.kind === 'explosive').length, range: rs.filter(r => r.completed).length, big3: ws.filter(w => w.kind === 'big3').length, custom: ws.filter(w => w.kind === 'custom').length };
     const parts = [];
-    ['explosive', 'range', 'big3'].forEach(k => { if (plan[k] > 0) parts.push(Math.min(1, done[k] / plan[k])); });
+    ['explosive', 'range', 'big3', 'custom'].forEach(k => { if (plan[k] > 0) parts.push(Math.min(1, done[k] / plan[k])); });
     parts.push(restViolations(ws) === 0 && done.explosive <= 3 ? 1 : 0);
     return { rate: parts.reduce((a, b) => a + b, 0) / parts.length, done, plan };
   }

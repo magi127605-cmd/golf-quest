@@ -32,7 +32,21 @@
       ${d.swings.filter(s => !s.deleted).map(s => `<div class="item" data-seen="${s.id}"><div class="row between"><span class="muted">${G.fmtDateTime(s.uploaded_at)}・段位${s.rank_target}</span><span class="tag ${s.status === 'judged' ? (s.verdict === 'ok' ? 'ok' : 'warn') : ''}">${s.status === 'judged' ? (s.verdict === 'ok' ? '次の段位 OK' : 'まだ') : '判定待ち'}</span></div>
         ${s.findings ? `<div class="answer">${G.esc(s.findings)}</div>` : ''}
         ${s.metrics ? `<div class="muted">${Object.entries(s.metrics).map(([k, v]) => `${G.esc(k)} ${G.esc(v)}`).join('・')}（参考値）</div>` : ''}
-        <div class="muted">動画は ${G.fmtDate(s.expires_at)} に削除</div></div>`).join('')}`;
+        <div class="muted">動画は ${G.fmtDate(s.expires_at)} に削除</div></div>`).join('')}
+
+      <div class="card" style="margin-top:20px">
+        <h3 style="margin-top:0">アプリへの要望</h3>
+        <p class="muted">「ここが使いにくい」「こういう機能が欲しい」を送ると、運営がアプリを作り直します。返事と対応状況はここに出ます。</p>
+        <textarea id="req" placeholder="例：筋トレのセット数を自分で変えたい"></textarea>
+        <button class="btn wide" id="sendReq" style="margin-top:8px">要望を送る</button>
+      </div>
+      ${d.requests.map(q => `<div class="item"><div class="row between"><span class="muted">${G.fmtDateTime(q.created_at)}</span><span class="tag ${q.status === 'done' ? 'ok' : q.status === 'accepted' ? 'warn' : ''}">${{ new: '受付', accepted: '対応中', done: '対応済', declined: '見送り' }[q.status] || q.status}</span></div>
+        <div class="q-body">${G.esc(q.body)}</div>${q.reply ? `<div class="answer">${G.esc(q.reply)}</div>` : ''}</div>`).join('')}`;
+    G.$('#sendReq').onclick = async () => {
+      const body = G.$('#req').value.trim(); if (!body) { G.toast('要望を書いてください'); return; }
+      G.$('#sendReq').disabled = true;
+      try { await G.write('gq_request', { p_body: body }); G.toast('送りました。運営が確認します'); G.route(); } catch (e) { G.toast(e.message); G.$('#sendReq').disabled = false; }
+    };
     // 既読
     let changed = false; G.view.querySelectorAll('[data-seen]').forEach(x => { if (!G.S.seen[x.dataset.seen]) { G.S.seen[x.dataset.seen] = 1; changed = true; } }); if (changed) G.save();
 

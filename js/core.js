@@ -177,6 +177,6 @@
     $, view, esc, toast, jst, dayKey, todayKey, weekKey, fmtDate, fmtDateTime, fmtTime, fmtDur, median, n1, meter, confirmBox, online,
     aiUrl, aiButtons, aiName, startTimer, stopTimer, routes, route, login, DAY, HOUR,
     member() { return (S.data && S.data.member) || {}; },
-    data() { return S.data || { member: {}, workouts: [], ranges: [], measurements: [], rounds: [], questions: [], swings: [] }; },
+    data() { const d = S.data || { member: {}, workouts: [], ranges: [], measurements: [], rounds: [], questions: [], swings: [] }; d.programs = d.programs || []; d.requests = d.requests || []; return d; },
   });
 })();

@@ -1,8 +1,8 @@
 /* オフライン対応。VERSION を上げると次回起動時に新しいファイルに入れ替わる */
-const VERSION = 'gq-v1.0.0';
+const VERSION = 'gq-v1.1.0';
 const FILES = [
   './', './index.html', './style.css', './manifest.webmanifest',
-  './js/config.js', './js/core.js', './js/rank.js', './js/home.js', './js/train.js', './js/range.js',
+  './js/config.js', './js/core.js', './js/rank.js', './js/home.js', './js/program.js', './js/train.js', './js/range.js',
   './js/measure.js', './js/yamada.js', './js/settings.js', './js/boot.js',
   './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png', './icons/maskable-512.png',
 ];
