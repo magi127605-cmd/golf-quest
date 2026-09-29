@@ -1,5 +1,5 @@
 /* オフライン対応。VERSION を上げると次回起動時に新しいファイルに入れ替わる */
-const VERSION = 'gq-v1.2.0';
+const VERSION = 'gq-v1.2.1';
 const FILES = [
   './', './index.html', './style.css', './manifest.webmanifest',
   './js/config.js', './js/core.js', './js/rank.js', './js/home.js', './js/program.js', './js/workout.js', './js/train.js', './js/range.js',
