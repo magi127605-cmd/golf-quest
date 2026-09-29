@@ -76,6 +76,13 @@
     return `
       <div class="card">
         <p class="muted">100切りは「ボギー＋ダブルボギー」の繰り返し。大叩きの原因はティーショットのOBと取り返そうとした2打目。</p>
+        <div class="row"><button class="btn small" id="r_imp_btn">スコアカードのスクショから取り込む</button></div>
+        <div id="r_imp" hidden class="note">
+          <p class="muted" style="margin-top:0">①下の質問文をコピー → ②${G.aiName()}を開き、スコアカードのスクショを付けて質問文を貼る → ③返ってきた文をそのまま下に貼って「取り込む」</p>
+          <div class="row"><button class="btn small" data-copy="${G.esc(ROUND_PROMPT)}">質問文をコピー</button><a class="btn small ghost" target="_blank" rel="noopener" href="${G.member().ai_pref === 'claude' ? 'https://claude.ai/new' : 'https://chatgpt.com/'}">${G.aiName()}を開く</a></div>
+          <textarea id="r_txt" placeholder="日付: 2026-09-20&#10;コース: ○○CC&#10;スコア: 98&#10;パット: 36&#10;ホール: 5,6,4,5,7,4,5,6,5 / 4,6,5,5,4,6,5,6,5&#10;パー: 4,4,3,5,4,3,4,5,4 / 4,5,3,4,4,4,5,3,4"></textarea>
+          <button class="btn small primary" id="r_imp_do">取り込む</button> <span class="muted" id="r_imp_st"></span>
+        </div>
         <div class="grid2">
           <div><label class="f">日付</label><input id="r_date" type="date" value="${G.todayKey()}"></div>
           <div><label class="f">コース名</label><input id="r_course" placeholder="任意"></div>
@@ -90,14 +97,45 @@
       </div>
       <h2>記録</h2>
       ${d.rounds.length ? `<table class="t"><tr><th>日付</th><th class="num">スコア</th><th class="num">パット</th><th class="num">OB</th><th class="num">ダボ+</th><th></th></tr>
-        ${d.rounds.slice().reverse().map(x => `<tr><td>${x.played_at.slice(5)}<div class="muted">${G.esc(x.course_name || '')}</div></td><td class="num">${x.score ?? '—'}</td><td class="num">${x.putts ?? '—'}</td><td class="num">${x.ob ?? '—'}</td><td class="num">${x.dbl_plus ?? '—'}</td><td><button class="btn small ghost" data-del="${x.id}">取消</button></td></tr>`).join('')}</table>` : '<p class="muted">まだ記録がありません。</p>'}`;
+        ${d.rounds.slice().reverse().map(x => `<tr><td>${x.played_at.slice(5)}<div class="muted">${G.esc(x.course_name || '')}</div></td><td class="num">${x.score ?? '—'}</td><td class="num">${x.putts ?? '—'}</td><td class="num">${x.ob ?? '—'}</td><td class="num">${x.dbl_plus ?? '—'}</td><td><button class="btn small ghost" data-del="${x.id}">取消</button></td></tr>${Array.isArray(x.holes) ? `<tr><td colspan="6" class="muted" style="font-size:12px;font-variant-numeric:tabular-nums">${x.holes.slice(0, 9).join(' ')}${x.holes.length > 9 ? ' / ' + x.holes.slice(9).join(' ') : ''}${Array.isArray(x.pars) ? `<br><span style="opacity:.7">P ${x.pars.slice(0, 9).join(' ')}${x.pars.length > 9 ? ' / ' + x.pars.slice(9).join(' ') : ''}</span>` : ''}</td></tr>` : ''}`).join('')}</table>` : '<p class="muted">まだ記録がありません。</p>'}`;
+  }
+  const ROUND_PROMPT = `添付のゴルフスコアカードを読み取って、次の形式の行だけで返してください（説明文は不要。読めない項目は行ごと省く。ホールとパーは18個をカンマ区切り、OUT/INの間に「/」）：
+日付: 2026-09-20
+コース: ○○カントリークラブ
+スコア: 98
+パット: 36
+FWキープ: 5
+OB: 2
+ホール: 5,6,4,5,7,4,5,6,5 / 4,6,5,5,4,6,5,6,5
+パー: 4,4,3,5,4,3,4,5,4 / 4,5,3,4,4,4,5,3,4`;
+  // AIが返した行を読む
+  function parseRound(text) {
+    const out = {}; const get = k => { const m = String(text).match(new RegExp('^\\s*' + k + '\\s*[:：]\\s*(.+)$', 'mi')); return m ? m[1].trim() : null; };
+    const nums = s => s ? s.split(/[,、\/\s]+/).map(x => x.trim()).filter(x => x !== '').map(Number).filter(n => !isNaN(n)) : null;
+    const dt = get('日付'); if (dt) { const m = dt.match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/); if (m) out.played_at = `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`; }
+    out.course_name = get('コース(?:名)?') || null;
+    ['スコア', 'パット(?:数)?', 'FW(?:キープ)?', 'OB', 'ダボ(?:以上)?'].forEach((k, i) => { const v = get(k); const n = v ? parseInt(v.replace(/[^0-9]/g, ''), 10) : NaN; if (!isNaN(n)) out[['score', 'putts', 'fw_keep', 'ob', 'dbl_plus'][i]] = n; });
+    const holes = nums(get('ホール(?:別)?')), pars = nums(get('パー'));
+    if (holes && holes.length >= 9) { out.holes = holes; if (out.score == null) out.score = holes.reduce((a, b) => a + b, 0); }
+    if (pars && holes && pars.length === holes.length) { out.pars = pars; if (out.dbl_plus == null) out.dbl_plus = holes.filter((h, i) => h - pars[i] >= 2).length; }
+    return Object.keys(out).filter(k => out[k] != null).length ? out : null;
   }
   function bindRound() {
+    let holes = null, pars = null;
+    G.$('#r_imp_btn').onclick = () => { G.$('#r_imp').hidden = !G.$('#r_imp').hidden; };
+    G.$('#r_imp_do').onclick = () => {
+      const p = parseRound(G.$('#r_txt').value);
+      if (!p) { G.$('#r_imp_st').textContent = '読み取れませんでした。「スコア: 98」のような行になっているか確認'; return; }
+      if (p.played_at) G.$('#r_date').value = p.played_at; if (p.course_name) G.$('#r_course').value = p.course_name;
+      [['score', '#r_score'], ['putts', '#r_putts'], ['fw_keep', '#r_fw'], ['ob', '#r_ob'], ['dbl_plus', '#r_dbl']].forEach(([k, id]) => { if (p[k] != null) G.$(id).value = p[k]; });
+      holes = p.holes || null; pars = p.pars || null;
+      G.$('#r_imp_st').textContent = `取り込みました${holes ? '（ホール別' + holes.length + 'H）' : ''}。数字を確認して「記録する」`;
+    };
     G.$('#r_save').onclick = async () => {
       const v = id => { const x = G.$(id).value; return x === '' ? null : Number(x); };
       if (v('#r_score') == null) { G.toast('スコアを入れてください'); return; }
       G.$('#r_save').disabled = true;
-      try { await G.write('gq_add_round', { p: { played_at: G.$('#r_date').value, course_name: G.$('#r_course').value, score: v('#r_score'), putts: v('#r_putts'), fw_keep: v('#r_fw'), ob: v('#r_ob'), dbl_plus: v('#r_dbl'), note: G.$('#r_note').value } }); G.toast('記録しました'); G.route(); } catch (e) { G.toast(e.message); G.$('#r_save').disabled = false; }
+      try { await G.write('gq_add_round', { p: { played_at: G.$('#r_date').value, course_name: G.$('#r_course').value, score: v('#r_score'), putts: v('#r_putts'), fw_keep: v('#r_fw'), ob: v('#r_ob'), dbl_plus: v('#r_dbl'), note: G.$('#r_note').value, holes, pars } }); G.toast('記録しました'); G.route(); } catch (e) { G.toast(e.message); G.$('#r_save').disabled = false; }
     };
     G.view.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => { if (!G.confirmBox('この記録を取り消しますか？')) return; try { await G.write('gq_delete_row', { p_table: 'rounds', p_id: b.dataset.del }); G.route(); } catch (e) { G.toast(e.message); } });
   }

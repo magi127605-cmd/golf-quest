@@ -1,9 +1,9 @@
 /* オフライン対応。VERSION を上げると次回起動時に新しいファイルに入れ替わる */
-const VERSION = 'gq-v1.2.1';
+const VERSION = 'gq-v1.3.0';
 const FILES = [
-  './', './index.html', './style.css', './manifest.webmanifest',
-  './js/config.js', './js/core.js', './js/rank.js', './js/home.js', './js/program.js', './js/workout.js', './js/train.js', './js/range.js',
-  './js/measure.js', './js/yamada.js', './js/settings.js', './js/boot.js',
+  './', './index.html', './style.css?v=1.3.0', './manifest.webmanifest',
+  './js/config.js?v=1.3.0', './js/core.js?v=1.3.0', './js/rank.js?v=1.3.0', './js/home.js?v=1.3.0', './js/program.js?v=1.3.0', './js/workout.js?v=1.3.0', './js/train.js?v=1.3.0', './js/range.js?v=1.3.0',
+  './js/measure.js?v=1.3.0', './js/yamada.js?v=1.3.0', './js/settings.js?v=1.3.0', './js/boot.js?v=1.3.0',
   './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png', './icons/maskable-512.png',
 ];
 self.addEventListener('install', e => {
