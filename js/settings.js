@@ -33,7 +33,8 @@
         <p class="muted">爆発トレは週3回が上限（それ以上は逆効果）。</p>
       </div>
       <div class="card">
-        <h3 style="margin-top:0">BIG3の現在重量（kg）</h3>
+        <h3 style="margin-top:0">BIG3の現在重量（kg）と体重</h3>
+        <div class="grid2" style="margin-bottom:8px"><div><label class="f">体重 kg（推定MAXの体重比に使う）</label><input id="l_bw" type="number" inputmode="decimal" step="0.1" value="${lifts.bw ?? ''}" placeholder="例：70"></div></div>
         <div class="grid3">
           <div><label class="f">スクワット</label><input id="l_squat" type="number" step="2.5" value="${lifts.squat ?? ''}"></div>
           <div><label class="f">デッド</label><input id="l_dead" type="number" step="2.5" value="${lifts.dead ?? ''}"></div>
@@ -69,7 +70,7 @@
         plan: { explosive: Number(G.$('#p_ex').value) || 2, range: Number(G.$('#p_rg').value) || 0, big3: Number(G.$('#p_b3').value) || 0 }, lifts: {} };
       if (course()) patch.course = course();
       const bpm = Number(G.$('#bpm').value); if (bpm >= 40 && bpm <= 140) patch.bpm = bpm;
-      ['squat', 'dead', 'bench'].forEach(k => { const v = G.$('#l_' + k).value; if (v !== '') patch.lifts[k] = Number(v); });
+      ['squat', 'dead', 'bench', 'bw'].forEach(k => { const v = G.$('#l_' + k).value; if (v !== '') patch.lifts[k] = Number(v); });
       G.$('#save').disabled = true;
       try { await G.updateMember(patch); G.toast('保存しました'); location.hash = '#home'; G.route(); } catch (e) { G.toast(e.message); G.$('#save').disabled = false; }
     };

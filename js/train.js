@@ -66,6 +66,7 @@
     G.view.innerHTML = `
       <h1>筋トレ</h1>
       <button class="btn primary wide big" id="startEmpty">＋ 空のワークアウトを開始</button>
+      ${G.maxes.card(d)}
 
       <div class="row between" style="margin-top:20px"><h2 style="margin:0">ルーティン</h2><a class="btn small ghost" href="#program">${prog ? '自分メニューを編集' : '自分メニューを作る'}</a></div>
       ${prog ? `<div class="card">
