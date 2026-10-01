@@ -9,15 +9,16 @@
     const tab = arg === 'round' ? 'round' : 'meas';
     G.view.innerHTML = `
       <h1>計測</h1>
-      <div class="chips"><a class="chip ${tab === 'meas' ? 'on' : ''}" href="#measure">飛距離・HS</a><a class="chip ${tab === 'round' ? 'on' : ''}" href="#measure/round">ラウンド</a></div>
+      <div class="chips"><a class="chip ${tab === 'meas' ? 'on' : ''}" href="#measure">飛距離・HS</a><a class="chip" href="#diagnose">診断</a><a class="chip ${tab === 'round' ? 'on' : ''}" href="#measure/round">ラウンド</a></div>
       ${tab === 'meas' ? meas(d) : round(d)}`;
     if (tab === 'meas') bindMeas(); else bindRound();
   };
 
   function meas(d) {
+    const rows = d.measurements.filter(x => x.hs != null || x.ball_speed != null || x.carry != null || x.total != null);
     return `
       <div class="card">
-        <p class="muted">HSとキャリーの2つで十分。あるものだけ入れる。同じ計測器・同じ条件で比べること。</p>
+        <p class="muted">HSとキャリーの2つで十分。あるものだけ入れる。同じ計測器・同じ条件で比べること。初速も入れるとミート率が出る（<a href="#diagnose">診断</a>）。</p>
         <div class="row"><button class="btn small" id="shot">計測器のスクショから読み取る</button><input type="file" id="img" accept="image/*" hidden><span class="muted" id="ocr"></span></div>
         <div class="grid2">
           <div><label class="f">日付</label><input id="m_date" type="date" value="${G.todayKey()}"></div>
@@ -27,8 +28,8 @@
         <button class="btn primary wide" id="m_save" style="margin-top:10px">記録する</button>
       </div>
       <h2>記録</h2>
-      ${d.measurements.length ? `<table class="t"><tr><th>日付</th><th class="num">HS</th><th class="num">初速</th><th class="num">キャリー</th><th class="num">トータル</th><th></th></tr>
-        ${d.measurements.slice().reverse().map(x => `<tr><td>${x.measured_at.slice(5)}${x.source === 'screenshot' ? ' <span class="tag">ス</span>' : ''}</td><td class="num">${G.n1(x.hs)}</td><td class="num">${G.n1(x.ball_speed)}</td><td class="num">${G.n1(x.carry)}</td><td class="num">${G.n1(x.total)}</td><td><button class="btn small ghost" data-del="${x.id}">取消</button></td></tr>`).join('')}</table>` : '<p class="muted">まだ記録がありません。最初の1回が「基準値」になります。</p>'}`;
+      ${rows.length ? `<table class="t"><tr><th>日付</th><th class="num">HS</th><th class="num">初速</th><th class="num">キャリー</th><th class="num">トータル</th><th></th></tr>
+        ${rows.slice().reverse().map(x => `<tr><td>${x.measured_at.slice(5)}${x.source === 'screenshot' ? ' <span class="tag">ス</span>' : ''}</td><td class="num">${G.n1(x.hs)}</td><td class="num">${G.n1(x.ball_speed)}</td><td class="num">${G.n1(x.carry)}</td><td class="num">${G.n1(x.total)}</td><td><button class="btn small ghost" data-del="${x.id}">取消</button></td></tr>`).join('')}</table>` : '<p class="muted">まだ記録がありません。最初の1回が「基準値」になります。</p>'}`;
   }
   function bindMeas() {
     let source = 'manual';
