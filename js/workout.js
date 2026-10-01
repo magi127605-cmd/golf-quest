@@ -65,7 +65,7 @@
         <div class="lib-list">${LIB.filter(([n, g]) => !libQ || n.includes(libQ) || g.includes(libQ)).map(([n, g]) => `<button class="lib-item" data-ex="${G.esc(n)}"><span>${G.esc(n)}</span><span class="tag">${g}</span></button>`).join('')}
         ${libQ && !LIB.some(([n]) => n === libQ) ? `<button class="lib-item" data-ex="${G.esc(libQ)}"><span>「${G.esc(libQ)}」を追加</span></button>` : ''}</div></div>` : ''}
       <button class="btn wide ghost" id="discard" style="margin-top:16px">ワークアウトを破棄</button>
-      <div class="rest-bar" id="restBar" hidden><span class="rest-t" id="restT">0:00</span><button class="btn small" id="restMinus">-15秒</button><button class="btn small" id="restPlus">+15秒</button><button class="btn small primary" id="restSkip">スキップ</button></div>`;
+      <div class="rest-bar" id="restBar" hidden><span class="rest-t" id="restT">0:00</span><button class="btn small" id="restMinus">-15秒</button><button class="btn small" id="restPlus">+15秒</button><button class="btn small primary" id="restSkip">スキップ</button>${G.alarm.perm() === 'default' ? '<button class="btn small" id="restNotify">🔔 通知オン</button>' : ''}</div>`;
     bind(); startClock(); tickRest();
   }
 
@@ -89,7 +89,7 @@
             if (wIn.value === '' && wIn.placeholder) wIn.value = wIn.placeholder; if (rIn.value === '' && rIn.placeholder) rIn.value = rIn.placeholder;
             s.weight = wIn.value; s.reps = rIn.value;
             if (s.reps === '') { G.toast('回数を入れてください'); return; }
-            s.done = true;
+            s.done = true; G.alarm.prime();
             const isLast = ei === W.exercises.length - 1 && si === e.sets.length - 1;
             if (!isLast) W.rest = { end: Date.now() + e.rest * 1000, total: e.rest * 1000 };
           } else { s.done = false; }
@@ -109,6 +109,16 @@
     G.$('#restMinus').onclick = () => { if (W.rest) { W.rest.end -= 15000; G.save(); } };
     G.$('#restPlus').onclick = () => { if (W.rest) { W.rest.end += 15000; W.rest.total += 15000; G.save(); } };
     G.$('#restSkip').onclick = () => { W.rest = null; G.save(); tickRest(); };
+    const nb = G.$('#restNotify');
+    if (nb) nb.onclick = async () => { const p = await G.alarm.ask(); nb.remove(); G.toast(p === 'granted' ? '休憩おわりを通知で知らせます' : '通知は許可されませんでした（設定から変えられます）'); };
+  }
+  // 次にやるセット（通知の文に使う）
+  function nextSetText(W) {
+    for (const e of W.exercises) {
+      const si = e.sets.findIndex(s => !s.done);
+      if (si >= 0) { const s = e.sets[si]; return `次：${disp(e.ex)} ${si + 1}セット目${s.weight !== '' ? ' ' + s.weight + 'kg' : ''}${s.reps !== '' ? '×' + s.reps + '回' : ''}`; }
+    }
+    return '次のセットへ';
   }
 
   function startClock() {
@@ -124,7 +134,7 @@
       if (!W || !W.rest) { bar.hidden = true; clearInterval(restTick); return; }
       const left = W.rest.end - Date.now();
       bar.hidden = false; G.$('#restT').textContent = '休憩 ' + G.fmtTime(left);
-      if (left <= 0) { W.rest = null; G.save(); bar.hidden = true; try { navigator.vibrate && navigator.vibrate([200, 100, 200]); } catch (e) { } clearInterval(restTick); }
+      if (left <= 0) { W.rest = null; G.save(); bar.hidden = true; clearInterval(restTick); if (left > -60000) G.alarm.ring('休憩おわり', nextSetText(W)); }
     };
     f(); restTick = setInterval(f, 250);
   }

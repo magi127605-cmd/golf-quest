@@ -119,6 +119,48 @@
   }
   function stopTimer() { clearInterval(timerH); timerH = null; }
 
+  // 休憩おわりの知らせ（画面を見ている時=音、画面を消している・別アプリの時=スマホの通知。どちらもイヤホンに鳴る）
+  const alarm = (function () {
+    let audio = null;
+    function beepUrl() { // ピッ・ピッ・ピーッ（1.3秒）。5秒未満なので音楽は止めずに一瞬小さくなるだけ
+      const sr = 16000, tones = [[880, .18], [0, .12], [880, .18], [0, .12], [1320, .5]];
+      const n = Math.round(sr * tones.reduce((a, t) => a + t[1], 0)), buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+      const str = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+      str(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); str(8, 'WAVEfmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+      v.setUint32(24, sr, true); v.setUint32(28, sr * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); str(36, 'data'); v.setUint32(40, n * 2, true);
+      let i = 0;
+      tones.forEach(([f, d]) => { const len = Math.round(sr * d); for (let k = 0; k < len && i < n; k++, i++) { const env = Math.min(1, k / 160, (len - k) / 160); v.setInt16(44 + i * 2, f ? Math.sin(2 * Math.PI * f * k / sr) * 0.6 * env * 32767 : 0, true); } });
+      return URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
+    }
+    function el() { if (!audio) { audio = new Audio(beepUrl()); audio.preload = 'auto'; } return audio; }
+    // 指で触った時に1回鳴らす準備をしておく（iPhoneは触った時しか音の許可が出ない）
+    function prime() { try { const a = el(); if (!a.paused) return; a.muted = true; const p = a.play(); if (p) p.then(() => { a.pause(); a.currentTime = 0; a.muted = false; }).catch(() => { a.muted = false; }); } catch (e) { } }
+    function supported() { return 'Notification' in window && 'serviceWorker' in navigator; }
+    function perm() { return supported() ? Notification.permission : 'unsupported'; }
+    async function ask() { if (!supported()) return 'unsupported'; try { return await Notification.requestPermission(); } catch (e) { return perm(); } }
+    function beep() { try { const a = el(); a.muted = false; a.currentTime = 0; const p = a.play(); if (p) p.catch(() => { }); } catch (e) { } }
+    async function notify(title, body) {
+      if (perm() !== 'granted') return false;
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        await reg.showNotification(title, { body, tag: 'gq-rest', renotify: true, silent: false, vibrate: [300, 120, 300, 120, 300], icon: 'icons/icon-192.png', badge: 'icons/icon-192.png' });
+        return true;
+      } catch (e) { return false; }
+    }
+    async function ring(title, body) {
+      try { navigator.vibrate && navigator.vibrate([300, 120, 300, 120, 300]); } catch (e) { }
+      if (document.visibilityState === 'visible') { beep(); return; }
+      if (!(await notify(title, body))) beep(); // 通知が使えない時は音だけでも
+    }
+    // アプリに戻ったら残った通知は片付ける
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState !== 'visible' || !supported()) return;
+      navigator.serviceWorker.getRegistration().then(r => r && r.getNotifications({ tag: 'gq-rest' })).then(ns => (ns || []).forEach(n => n.close())).catch(() => { });
+    });
+    document.addEventListener('pointerdown', prime, { once: true });
+    return { prime, perm, ask, ring, beep, supported };
+  })();
+
   // ---------- ルーティング ----------
   const routes = {};
   function route() {
@@ -175,7 +217,7 @@
   window.GQ = Object.assign(window.GQ || {}, {
     S, save, sync, write, rpc, updateMember, uploadVideo,
     $, view, esc, toast, jst, dayKey, todayKey, weekKey, fmtDate, fmtDateTime, fmtTime, fmtDur, median, n1, meter, confirmBox, online,
-    aiUrl, aiButtons, aiName, startTimer, stopTimer, routes, route, login, DAY, HOUR,
+    aiUrl, aiButtons, aiName, startTimer, stopTimer, alarm, routes, route, login, DAY, HOUR,
     member() { return (S.data && S.data.member) || {}; },
     data() { const d = S.data || { member: {}, workouts: [], ranges: [], measurements: [], rounds: [], questions: [], swings: [] }; d.programs = d.programs || []; d.requests = d.requests || []; return d; },
   });

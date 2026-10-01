@@ -152,7 +152,7 @@
       </div>`;
     const el = G.$('#tm');
     el.addEventListener('minreached', () => { const b = G.$('#next'); if (b) { b.disabled = false; b.textContent = '次へ'; } }, { once: true });
-    G.startTimer(el, R.restMs || 150000, () => { try { navigator.vibrate && navigator.vibrate(200); } catch (e) { } const b = G.$('#next'); if (b) { b.disabled = false; b.textContent = '次へ'; } }, 120000);
+    G.startTimer(el, R.restMs || 150000, () => { G.alarm.ring('休憩おわり', 'マン振りの次のセットへ'); const b = G.$('#next'); if (b) { b.disabled = false; b.textContent = '次へ'; } }, 120000);
     G.$('#next').onclick = () => { R.rest = false; G.stopTimer(); G.save(); runner(); };
   }
 

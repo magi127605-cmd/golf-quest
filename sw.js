@@ -1,9 +1,9 @@
 /* オフライン対応。VERSION を上げると次回起動時に新しいファイルに入れ替わる */
-const VERSION = 'gq-v1.3.0';
+const VERSION = 'gq-v1.3.1';
 const FILES = [
-  './', './index.html', './style.css?v=1.3.0', './manifest.webmanifest',
-  './js/config.js?v=1.3.0', './js/core.js?v=1.3.0', './js/rank.js?v=1.3.0', './js/home.js?v=1.3.0', './js/program.js?v=1.3.0', './js/workout.js?v=1.3.0', './js/train.js?v=1.3.0', './js/range.js?v=1.3.0',
-  './js/measure.js?v=1.3.0', './js/yamada.js?v=1.3.0', './js/settings.js?v=1.3.0', './js/boot.js?v=1.3.0',
+  './', './index.html', './style.css?v=1.3.1', './manifest.webmanifest',
+  './js/config.js?v=1.3.1', './js/core.js?v=1.3.1', './js/rank.js?v=1.3.1', './js/home.js?v=1.3.1', './js/program.js?v=1.3.1', './js/workout.js?v=1.3.1', './js/train.js?v=1.3.1', './js/range.js?v=1.3.1',
+  './js/measure.js?v=1.3.1', './js/yamada.js?v=1.3.1', './js/settings.js?v=1.3.1', './js/boot.js?v=1.3.1',
   './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png', './icons/maskable-512.png',
 ];
 self.addEventListener('install', e => {
@@ -11,6 +11,14 @@ self.addEventListener('install', e => {
 });
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== VERSION).map(k => caches.delete(k)))).then(() => self.clients.claim()));
+});
+// 休憩おわりの通知を押したらアプリに戻る
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(cs => {
+    const c = cs.find(x => x.url.startsWith(self.registration.scope));
+    return c ? c.focus() : self.clients.openWindow('./');
+  }));
 });
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET' || new URL(e.request.url).origin !== location.origin) return;

@@ -41,6 +41,12 @@
         </div>
       </div>
       <div class="card">
+        <h3 style="margin-top:0">休憩おわりの知らせ</h3>
+        <p class="muted">画面を見ている時は音、画面を消している・別のアプリの時はスマホの通知で知らせます（イヤホンにも鳴ります）。</p>
+        <p id="ntState"></p>
+        <div class="row"><button class="btn small" id="ntOn">通知をオンにする</button><button class="btn small ghost" id="ntTest">10秒後に試す</button></div>
+      </div>
+      <div class="card">
         <label class="f">AIに聞く先</label>
         <div class="chips">${[['chatgpt', 'ChatGPT'], ['claude', 'Claude']].map(([k, l]) => `<button class="chip ${(m.ai_pref || 'chatgpt') === k ? 'on' : ''}" data-ai="${k}">${l}</button>`).join('')}</div>
         <label class="f">見た目</label>
@@ -67,6 +73,14 @@
       G.$('#save').disabled = true;
       try { await G.updateMember(patch); G.toast('保存しました'); location.hash = '#home'; G.route(); } catch (e) { G.toast(e.message); G.$('#save').disabled = false; }
     };
+    const ntShow = () => {
+      const p = G.alarm.perm();
+      G.$('#ntState').innerHTML = { granted: '<b>オン</b>', denied: '<b>オフ</b>（ブラウザで止められています。Chromeならアドレス欄の左の印 → 権限 → 通知 を「許可」に）', default: 'まだオンになっていません', unsupported: 'このブラウザでは通知が使えません（iPhoneはホーム画面に追加したアプリから開くと使えます）。音とバイブだけで知らせます' }[p];
+      G.$('#ntOn').style.display = p === 'default' ? '' : 'none';
+    };
+    ntShow();
+    G.$('#ntOn').onclick = async () => { await G.alarm.ask(); ntShow(); };
+    G.$('#ntTest').onclick = () => { G.alarm.prime(); G.toast('10秒後に鳴ります。画面を消して待ってください'); setTimeout(() => G.alarm.ring('休憩おわり（お試し）', 'これが休憩おわりの知らせです'), 10000); };
     G.$('#resync').onclick = () => G.sync().then(() => { G.toast('取り直しました'); }).catch(() => { });
     G.$('#logout').onclick = () => { if (!G.confirmBox('この端末から外しますか？（記録は倉庫に残ります。合言葉で戻せます）')) return; G.S.code = null; G.S.data = null; G.S.wip = { workout: null, range: null }; G.save(); location.hash = '#home'; G.route(); };
   };
