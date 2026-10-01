@@ -3,5 +3,5 @@ window.GQ_CONFIG = {
   url: 'https://kozfhslnlcdbitksjqzy.supabase.co',
   key: 'sb_publishable_OItUk1oz_qYmOpLUMPnHGQ_hOAb-ghi',
   bucket: 'gq-swings',
-  version: '1.5.0',
+  version: '1.6.0',
 };

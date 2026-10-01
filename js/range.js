@@ -66,7 +66,7 @@
         <p class="muted">サーキット1周＝ウェッジ10y → ドライバーハーフ100y → アイアンハイティー → ドライバーフル。順番は変えない。ショットマーカーは全球つけっぱなし。</p>
       </div>
       <h2>記録</h2>
-      ${d.ranges.slice().reverse().slice(0, 30).map(r => `<div class="item ${r.completed ? 'done' : ''}"><div class="row between"><div class="ttl">${G.fmtDateTime(r.done_at)} ${r.balls_hit}/${r.balls_plan}球 ${r.completed ? '<span class="tag ok">完走</span>' : '<span class="tag">途中終了</span>'}</div><button class="btn small ghost" data-del="${r.id}">取消</button></div>
+      ${d.ranges.slice().reverse().slice(0, 30).map(r => `<div class="item ${r.completed ? 'done' : ''}"><div class="row between"><div class="ttl">${G.fmtDateTime(r.done_at)} ${r.balls_hit}/${r.balls_plan}球 ${r.completed ? '<span class="tag ok">完走</span>' : '<span class="tag">途中終了</span>'} <span class="tag k">+${G.xp.session(r).xp}</span></div><button class="btn small ghost" data-del="${r.id}">取消</button></div>
         <div class="sub">サーキット${r.circuits_done}周・マン振り${r.manburi_balls}球・メトロノーム${r.metronome_on ? 'ON' : 'OFF'}${G.rank.impactTotal(r) ? `・打点${G.rank.impactTotal(r)}球（芯${Math.round(100 * (Number((r.impact || {}).c) || 0) / G.rank.impactTotal(r))}%）` : ''}${r.carry_y ? '・キャリー' + r.carry_y + 'y' : ''}${r.note ? '<br>' + G.esc(r.note) : ''}</div></div>`).join('') || '<p class="muted">まだ記録がありません。</p>'}`;
     let n = 100;
     const showPlan = () => { const p = PROGRAMS[n]; const c = p.filter(s => s[0] === 'c').reduce((a, s) => a + s[1] * 4 + (s[2] || 0), 0), mb = p.filter(s => s[0] === 'm').length * 5; G.$('#plan').textContent = `サーキット${c}球＋マン振り${mb}球（${p.filter(s => s[0] === 'm').length}セット）。マン振りは15球が上限、16球目は打てません。`; };
@@ -179,7 +179,8 @@
       G.$('#save').disabled = true;
       try {
         await G.write('gq_add_range', { p: { balls_plan: R.plan, balls_hit: R.hit, circuits_done: R.circuits, manburi_sets: R.mSets, manburi_balls: R.mBalls, warmup: true, metronome_on: !R.mutedInCircuit, bpm: R.bpm, completed: !!completed, impact, carry_y: G.$('#carry').value || null, note: G.$('#note').value } });
-        G.S.wip.range = null; G.save(); G.toast('記録しました'); location.hash = '#range'; G.route();
+        const got = G.xp.session({ circuits_done: R.circuits, manburi_balls: R.mBalls, completed: !!completed, metronome_on: !R.mutedInCircuit }).xp;
+        G.S.wip.range = null; G.save(); G.toast(`記録しました（経験値 +${got}）`); location.hash = '#range'; G.route();
       } catch (e) { G.toast(e.message); G.$('#save').disabled = false; }
     };
   }

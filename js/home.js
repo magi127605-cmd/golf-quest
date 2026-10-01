@@ -56,7 +56,7 @@ ${rd || 'なし'}`;
     const carry = last5med(d.measurements, 'carry'), hs = last5med(d.measurements, 'hs');
     const base = d.measurements[0] || {};
     const cr = centerRate(d.ranges);
-    const sc = d.rounds.length ? Math.round(d.rounds.slice(-5).reduce((a, x) => a + (x.score || 0), 0) / d.rounds.slice(-5).length) : null;
+    const sc = G.xp.score(d);
     const tw = r.thisWeek;
     const ex = d.workouts.filter(w => w.kind === 'explosive'), lastEx = ex.length ? new Date(ex[ex.length - 1].done_at).getTime() : 0;
     const nextEx = lastEx + 48 * G.HOUR - Date.now();
@@ -71,6 +71,7 @@ ${rd || 'なし'}`;
       </div>
       ${(pendQ || pendS) ? `<a class="card flat" href="#yamada" style="display:block;text-decoration:none"><b>yamadaから届いています</b> <span class="muted">${pendQ ? '回答' + pendQ + '件 ' : ''}${pendS ? 'スイング判定' + pendS + '件' : ''}</span></a>` : ''}
 
+      ${G.xp.card(d)}
       ${r.next ? `<div class="card">
         <div class="row between"><h3 style="margin:0">次の段位 ${r.next.rank}「${G.esc(r.next.name)}」まで</h3><span class="muted">${G.esc(r.next.src)}</span></div>
         ${r.next.items.map(i => `<div class="quest ${i.done ? 'done' : ''}"><div class="q-ttl"><span>${i.done ? '✓ ' : ''}${G.esc(i.label)}</span><span class="st">${i.flag ? (i.done ? '達成' : '未') : `${i.cur}/${i.need}${i.unit || ''}`}</span></div>${i.flag ? '' : G.meter(i.cur, i.need, i.done)}</div>`).join('')}
@@ -79,7 +80,7 @@ ${rd || 'なし'}`;
       <div class="stats4">
         <div class="stat"><div class="n">飛距離（直近5回の中央値）</div><div class="v">${G.n1(carry)}<small> y</small></div><div class="d ${carry != null && base.carry != null && carry > base.carry ? 'up' : ''}">${carry != null && base.carry != null ? `基準 ${G.n1(base.carry)} → ${carry >= base.carry ? '+' : ''}${G.n1(carry - base.carry)}` : 'HS ' + G.n1(hs) + ' m/s'}</div></div>
         <div class="stat"><div class="n">再現性（打点が中央の割合）</div><div class="v">${cr == null ? '—' : cr}<small> %</small></div><div class="d">直近5回の練習場</div></div>
-        <div class="stat"><div class="n">スコア（直近5R平均）</div><div class="v">${sc == null ? '—' : sc}</div><div class="d">${d.rounds.length}ラウンド記録</div></div>
+        <div class="stat"><div class="n">推定スコア（直近${sc ? sc.n : 5}R平均）</div><div class="v">${sc == null ? '—' : G.n1(sc.est)}</div><div class="d ${sc && sc.trend != null && sc.trend < 0 ? 'up' : ''}">${sc == null ? 'ラウンドを記録すると出る' : sc.trend != null ? `前の5Rより ${sc.trend <= 0 ? '' : '+'}${sc.trend}打` : `ベスト ${sc.best}・100切り ${sc.under100}/${sc.n}`}</div></div>
         <div class="stat"><div class="n">遵守率（今週）</div><div class="v">${Math.round(tw.rate * 100)}<small> %</small></div><div class="d">4週平均 ${Math.round(100 * r.adherence4.reduce((a, b) => a + b, 0) / r.adherence4.length)}%</div></div>
       </div>
 
