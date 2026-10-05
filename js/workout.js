@@ -106,8 +106,9 @@
     });
     G.$('#discard').onclick = () => { if (G.confirmBox('記録せずに破棄しますか？')) { G.S.wip.workout = null; G.save(); stopClocks(); G.route(); } };
     G.$('#finish').onclick = finish;
-    G.$('#restMinus').onclick = () => { if (W.rest) { W.rest.end -= 15000; G.save(); } };
-    G.$('#restPlus').onclick = () => { if (W.rest) { W.rest.end += 15000; W.rest.total += 15000; G.save(); } };
+    const rearm = () => { if (W.rest.end - Date.now() > G.alarm.warnSec() * 1000) W.rest.warned = false; };
+    G.$('#restMinus').onclick = () => { if (W.rest) { W.rest.end -= 15000; rearm(); G.save(); } };
+    G.$('#restPlus').onclick = () => { if (W.rest) { W.rest.end += 15000; W.rest.total += 15000; rearm(); G.save(); } };
     G.$('#restSkip').onclick = () => { W.rest = null; G.save(); tickRest(); };
     const nb = G.$('#restNotify');
     if (nb) nb.onclick = async () => { const p = await G.alarm.ask(); nb.remove(); G.toast(p === 'granted' ? '休憩おわりを通知で知らせます' : '通知は許可されませんでした（設定から変えられます）'); };
@@ -134,6 +135,8 @@
       if (!W || !W.rest) { bar.hidden = true; clearInterval(restTick); return; }
       const left = W.rest.end - Date.now();
       bar.hidden = false; G.$('#restT').textContent = '休憩 ' + G.fmtTime(left);
+      const wMs = G.alarm.warnSec() * 1000;
+      if (wMs && !W.rest.warned && left > 0 && left <= wMs && W.rest.total > wMs + 5000) { W.rest.warned = true; G.save(); G.alarm.warn(nextSetText(W)); }
       if (left <= 0) { W.rest = null; G.save(); bar.hidden = true; clearInterval(restTick); if (left > -60000) G.alarm.ring('休憩おわり', nextSetText(W)); }
     };
     f(); restTick = setInterval(f, 250);

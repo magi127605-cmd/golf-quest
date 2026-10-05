@@ -44,6 +44,8 @@
       <div class="card">
         <h3 style="margin-top:0">休憩おわりの知らせ</h3>
         <p class="muted">画面を見ている時は音、画面を消している・別のアプリの時はスマホの通知で知らせます（イヤホンにも鳴ります）。</p>
+        <label class="f">おわる前の予告音（短いポーン1回）</label>
+        <div class="chips">${[[0, 'なし'], [10, '10秒前'], [20, '20秒前'], [30, '30秒前'], [60, '1分前']].map(([k, l]) => `<button class="chip ${G.alarm.warnSec() === k ? 'on' : ''}" data-warn="${k}">${l}</button>`).join('')}</div>
         <p id="ntState"></p>
         <div class="row"><button class="btn small" id="ntOn">通知をオンにする</button><button class="btn small ghost" id="ntTest">10秒後に試す</button></div>
       </div>
@@ -60,8 +62,8 @@
         <div class="row"><button class="btn small" id="resync">記録を取り直す</button><button class="btn small ghost" id="logout">この端末から外す</button></div>
         <p class="muted">別の端末で使う時は、同じ合言葉を入れれば記録が引き継がれます。</p>
       </div>`;
-    const pick = (sel, attr) => { let v = null; G.view.querySelectorAll(sel).forEach(b => { if (b.classList.contains('on')) v = b.dataset[attr]; b.onclick = () => { G.view.querySelectorAll(sel).forEach(x => x.classList.toggle('on', x === b)); v = b.dataset[attr]; if (attr === 'theme') { G.S.theme = v; G.save(); applyTheme(); } }; }); return () => v; };
-    const course = pick('[data-course]', 'course'), beats = pick('[data-beats]', 'beats'), ai = pick('[data-ai]', 'ai'); pick('[data-theme]', 'theme');
+    const pick = (sel, attr) => { let v = null; G.view.querySelectorAll(sel).forEach(b => { if (b.classList.contains('on')) v = b.dataset[attr]; b.onclick = () => { G.view.querySelectorAll(sel).forEach(x => x.classList.toggle('on', x === b)); v = b.dataset[attr]; if (attr === 'theme') { G.S.theme = v; G.save(); applyTheme(); } if (attr === 'warn') { G.S.restWarn = Number(v); G.save(); } }; }); return () => v; };
+    const course = pick('[data-course]', 'course'), beats = pick('[data-beats]', 'beats'), ai = pick('[data-ai]', 'ai'); pick('[data-theme]', 'theme'); pick('[data-warn]', 'warn');
     G.$('#test').onclick = () => { const b = Number(G.$('#bpm').value) || 60; G.metro.start(b, Number(beats()) || 3); };
     G.$('#stop').onclick = () => G.metro.stop();
     G.$('#save').onclick = async () => {
@@ -81,7 +83,7 @@
     };
     ntShow();
     G.$('#ntOn').onclick = async () => { await G.alarm.ask(); ntShow(); };
-    G.$('#ntTest').onclick = () => { G.alarm.prime(); G.toast('10秒後に鳴ります。画面を消して待ってください'); setTimeout(() => G.alarm.ring('休憩おわり（お試し）', 'これが休憩おわりの知らせです'), 10000); };
+    G.$('#ntTest').onclick = () => { G.alarm.prime(); G.toast(G.alarm.warnSec() ? '5秒後に予告音、10秒後に休憩おわりの音が鳴ります。画面を消して待ってください' : '10秒後に鳴ります。画面を消して待ってください'); const w = G.alarm.warnSec(); if (w) setTimeout(() => G.alarm.warn('これが予告の知らせです'), 5000); setTimeout(() => G.alarm.ring('休憩おわり（お試し）', 'これが休憩おわりの知らせです'), 10000); };
     G.$('#resync').onclick = () => G.sync().then(() => { G.toast('取り直しました'); }).catch(() => { });
     G.$('#logout').onclick = () => { if (!G.confirmBox('この端末から外しますか？（記録は倉庫に残ります。合言葉で戻せます）')) return; G.S.code = null; G.S.data = null; G.S.wip = { workout: null, range: null }; G.save(); location.hash = '#home'; G.route(); };
   };

@@ -14,7 +14,7 @@
   function load() {
     let s = null;
     try { s = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { s = null; }
-    const base = { v: 1, code: null, data: null, syncedAt: 0, theme: 'auto', wip: { workout: null, range: null }, seen: {} };
+    const base = { v: 1, code: null, data: null, syncedAt: 0, theme: 'auto', restWarn: 20, wip: { workout: null, range: null }, seen: {} };
     return Object.assign(base, s || {});
   }
   function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { toast('端末に保存できませんでした'); } }
@@ -106,11 +106,13 @@
 
   // 休憩タイマー（画面内・1個だけ）
   let timerH = null;
-  function startTimer(el, ms, onDone, minMs) {
+  function startTimer(el, ms, onDone, minMs, warnBody) {
     clearInterval(timerH);
-    const end = Date.now() + ms, minEnd = Date.now() + (minMs || 0);
+    const end = Date.now() + ms, minEnd = Date.now() + (minMs || 0), wMs = alarm.warnSec() * 1000;
+    let warned = !wMs || ms <= wMs + 5000;
     const tick = () => {
       const left = end - Date.now();
+      if (!warned && left <= wMs && left > 0) { warned = true; alarm.warn(warnBody || '次のセットの準備を'); }
       el.textContent = fmtTime(left); el.classList.toggle('low', left < 15000);
       if (minMs && Date.now() >= minEnd) el.dispatchEvent(new CustomEvent('minreached'));
       if (left <= 0) { clearInterval(timerH); timerH = null; onDone && onDone(); }
@@ -121,9 +123,9 @@
 
   // 休憩おわりの知らせ（画面を見ている時=音、画面を消している・別アプリの時=スマホの通知。どちらもイヤホンに鳴る）
   const alarm = (function () {
-    let audio = null;
-    function beepUrl() { // ピッ・ピッ・ピーッ（1.3秒）。5秒未満なので音楽は止めずに一瞬小さくなるだけ
-      const sr = 16000, tones = [[880, .18], [0, .12], [880, .18], [0, .12], [1320, .5]];
+    let audio = null, primed = false;
+    function wavUrl(tones) {
+      const sr = 16000;
       const n = Math.round(sr * tones.reduce((a, t) => a + t[1], 0)), buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
       const str = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
       str(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); str(8, 'WAVEfmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
@@ -132,13 +134,23 @@
       tones.forEach(([f, d]) => { const len = Math.round(sr * d); for (let k = 0; k < len && i < n; k++, i++) { const env = Math.min(1, k / 160, (len - k) / 160); v.setInt16(44 + i * 2, f ? Math.sin(2 * Math.PI * f * k / sr) * 0.6 * env * 32767 : 0, true); } });
       return URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
     }
-    function el() { if (!audio) { audio = new Audio(beepUrl()); audio.preload = 'auto'; } return audio; }
-    // 指で触った時に1回鳴らす準備をしておく（iPhoneは触った時しか音の許可が出ない）
-    function prime() { try { const a = el(); if (!a.paused) return; a.muted = true; const p = a.play(); if (p) p.then(() => { a.pause(); a.currentTime = 0; a.muted = false; }).catch(() => { a.muted = false; }); } catch (e) { } }
+    // 休憩おわり＝ピッ・ピッ・ピーッ（1.1秒）／予告＝ポーン1回（0.35秒・低め）。5秒未満なので音楽は止めずに一瞬小さくなるだけ
+    let urls = null;
+    function snd() { if (!urls) urls = { end: wavUrl([[880, .18], [0, .12], [880, .18], [0, .12], [1320, .5]]), warn: wavUrl([[660, .35]]) }; return urls; }
+    function el() { if (!audio) { audio = new Audio(snd().end); audio.preload = 'auto'; } return audio; }
+    // 最初に指で触った時に1回だけ鳴らす準備（iPhoneは触った時しか音の許可が出ない）。
+    // 毎回やるとAndroidで✓を押すたびに音楽が小さくなるので、成功したら二度とやらない
+    function prime() {
+      if (primed) return;
+      try { const a = el(); if (!a.paused) return; a.muted = true; const p = a.play(); if (p) p.then(() => { a.pause(); a.currentTime = 0; a.muted = false; primed = true; }).catch(() => { a.muted = false; }); } catch (e) { }
+    }
     function supported() { return 'Notification' in window && 'serviceWorker' in navigator; }
     function perm() { return supported() ? Notification.permission : 'unsupported'; }
     async function ask() { if (!supported()) return 'unsupported'; try { return await Notification.requestPermission(); } catch (e) { return perm(); } }
-    function beep() { try { const a = el(); a.muted = false; a.currentTime = 0; const p = a.play(); if (p) p.catch(() => { }); } catch (e) { } }
+    function play(kind) { try { const a = el(), u = snd()[kind]; if (a.src !== u) a.src = u; a.muted = false; a.currentTime = 0; const p = a.play(); if (p) p.catch(() => { }); } catch (e) { } }
+    function beep() { play('end'); }
+    // 何秒前に予告するか（0=しない）。端末ごとに覚える
+    function warnSec() { const v = Number(S.restWarn); return v > 0 ? v : 0; }
     async function notify(title, body) {
       if (perm() !== 'granted') return false;
       try {
@@ -146,6 +158,13 @@
         await reg.showNotification(title, { body, tag: 'gq-rest', renotify: true, silent: false, vibrate: [300, 120, 300, 120, 300], icon: 'icons/icon-192.png', badge: 'icons/icon-192.png' });
         return true;
       } catch (e) { return false; }
+    }
+    // 休憩おわりの予告（短い音1回）
+    async function warn(body) {
+      const sec = warnSec(); if (!sec) return;
+      try { navigator.vibrate && navigator.vibrate(150); } catch (e) { }
+      if (document.visibilityState === 'visible') { play('warn'); return; }
+      if (!(await notify(`休憩あと${sec}秒`, body))) play('warn');
     }
     async function ring(title, body) {
       try { navigator.vibrate && navigator.vibrate([300, 120, 300, 120, 300]); } catch (e) { }
@@ -158,7 +177,7 @@
       navigator.serviceWorker.getRegistration().then(r => r && r.getNotifications({ tag: 'gq-rest' })).then(ns => (ns || []).forEach(n => n.close())).catch(() => { });
     });
     document.addEventListener('pointerdown', prime, { once: true });
-    return { prime, perm, ask, ring, beep, supported };
+    return { prime, perm, ask, ring, warn, warnSec, beep, supported };
   })();
 
   // ---------- ルーティング ----------
