@@ -3,7 +3,7 @@
   'use strict';
   const G = window.GQ;
   const LIB = [
-    ['ベンチプレス', '胸'], ['インクラインベンチプレス', '胸'], ['ダンベルベンチプレス', '胸'], ['ダンベルフライ', '胸'], ['ディップス', '胸'], ['腕立て伏せ', '胸'],
+    ['ベンチプレス', '胸'], ['インクラインベンチプレス', '胸'], ['ダンベルベンチプレス', '胸'], ['インクラインダンベルプレス', '胸'], ['ダンベルフライ', '胸'], ['ディップス', '胸'], ['腕立て伏せ', '胸'],
     ['スクワット', '脚'], ['フロントスクワット', '脚'], ['レッグプレス', '脚'], ['ブルガリアンスクワット', '脚'], ['ランジ', '脚'], ['レッグカール', '脚'], ['レッグエクステンション', '脚'], ['カーフレイズ', '脚'],
     ['デッドリフト', '背中'], ['ルーマニアンデッドリフト', '背中'], ['懸垂', '背中'], ['ラットプルダウン', '背中'], ['ベントオーバーロウ', '背中'], ['ダンベルロウ', '背中'], ['シーテッドロウ', '背中'],
     ['オーバーヘッドプレス', '肩'], ['ダンベルショルダープレス', '肩'], ['サイドレイズ', '肩'], ['フェイスプル', '肩'],
@@ -13,6 +13,9 @@
   ];
   const YNAME = { jump_squat: 'ジャンプスクワット', high_pull: 'ハイプル', box_jump: 'ボックスジャンプ', squat: 'スクワット', dead: 'デッドリフト', bench: 'ベンチプレス' };
   const disp = ex => YNAME[ex] || ex;
+  // 台が埋まっていた時の代わり（同じ動きのダンベル版）。重さは片手＝バーベルの約4割、2kg刻み
+  const SUB = { 'ベンチプレス': 'ダンベルベンチプレス', 'インクラインベンチプレス': 'インクラインダンベルプレス', 'オーバーヘッドプレス': 'ダンベルショルダープレス' };
+  const dbW = w => w === '' || w == null ? '' : Math.max(2, Math.round(Number(w) * 0.4 / 2) * 2);
   let tick = null, restTick = null, libOpen = false, libQ = '';
 
   // 前回の値（同じメニュー・同じ曜日を優先、なければ同じ種目の直近）
@@ -46,6 +49,8 @@
         const prev = previous(e.ex, W);
         return `<div class="card wo-ex" data-ei="${ei}">
           <div class="row between"><div class="ttl" style="font-weight:700;font-size:17px">${G.esc(disp(e.ex))}</div><button class="btn small ghost ex-del">削除</button></div>
+          ${SUB[disp(e.ex)] && e.sets.some(s => !s.done) ? '<button class="btn small wide ex-sub">台が埋まってる → ダンベルに切り替え</button>' : ''}
+          ${e.from && !e.sets.some(s => s.done) ? `<button class="btn small wide ex-back">台が空いた → ${G.esc(e.from.ex)}に戻す</button>` : ''}
           <input class="ex-note" placeholder="メモ（例：胸で1秒止める）" value="${G.esc(e.note)}">
           <table class="settbl"><tr><th>セット</th><th>前回</th><th>kg</th><th>回</th><th>${e.mode === 'speed' ? '速さ' : 'RPE'}</th><th></th></tr>
             ${e.sets.map((s, si) => `<tr class="${s.done ? 'done' : ''}" data-si="${si}">
@@ -75,6 +80,8 @@
     G.view.querySelectorAll('.wo-ex').forEach(card => {
       const ei = Number(card.dataset.ei), e = W.exercises[ei];
       card.querySelector('.ex-note').oninput = ev => { e.note = ev.target.value; G.save(); };
+      const sb = card.querySelector('.ex-sub'); if (sb) sb.onclick = () => swap(ei);
+      const bk = card.querySelector('.ex-back'); if (bk) bk.onclick = () => { const f = e.from; W.exercises[ei] = { ex: f.ex, rest: e.rest, mode: e.mode, note: f.note, sets: f.sets }; G.save(); render(); };
       card.querySelector('.ex-del').onclick = () => { if (G.confirmBox(`${disp(e.ex)} を外しますか？`)) { W.exercises.splice(ei, 1); G.save(); render(); } };
       card.querySelector('.set-add').onclick = () => { const last = e.sets[e.sets.length - 1] || {}; e.sets.push({ weight: last.weight ?? '', reps: last.reps ?? '', rpe: null, done: false }); G.save(); render(); };
       card.querySelector('.set-del').onclick = () => { if (e.sets.length) { e.sets.pop(); G.save(); render(); } };
@@ -112,6 +119,17 @@
     G.$('#restSkip').onclick = () => { W.rest = null; G.save(); tickRest(); };
     const nb = G.$('#restNotify');
     if (nb) nb.onclick = async () => { const p = await G.alarm.ask(); nb.remove(); G.toast(p === 'granted' ? '休憩おわりを通知で知らせます' : '通知は許可されませんでした（設定から変えられます）'); };
+  }
+  // 台が埋まっていたらダンベル版へ。済んだセットは元の種目に残し、残りのセットだけ切り替える（回数・休憩はそのまま）
+  function swap(ei) {
+    const W = G.S.wip.workout, e = W.exercises[ei], name = disp(e.ex);
+    const done = e.sets.filter(s => s.done), left = e.sets.filter(s => !s.done);
+    const bw = (left.find(s => s.weight !== '') || {}).weight;
+    const d = { ex: SUB[name], rest: e.rest, mode: e.mode, from: { ex: name, note: e.note, sets: left.map(s => Object.assign({}, s)) },
+      note: `片手の重さ。${bw ? `バーベル${bw}kgの約4割` : '目安はバーベルの約4割'}。台が埋まってたので代わり`,
+      sets: left.map(s => ({ weight: dbW(s.weight), reps: s.reps, rpe: null, done: false })) };
+    if (done.length) { e.sets = done; W.exercises.splice(ei + 1, 0, d); } else W.exercises[ei] = d;
+    G.save(); render(); G.toast(`${SUB[name]}に切り替えました（重さは片手）`);
   }
   // 次にやるセット（通知の文に使う）
   function nextSetText(W) {

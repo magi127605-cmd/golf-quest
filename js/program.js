@@ -8,11 +8,24 @@
   const isLower = ex => /スクワット|デッド|squat|dead|レッグ|脚/i.test(ex || '');
 
   // 筋力の型（波状：重い日／軽い日／強い日）。Rhea 2002・Grgic 2018：週2〜3回・強度を日ごとに変える方が線形より伸びる
+  // 休憩：ジムの台は20分しか使えない。準備運動（約5分）込みで収めるため重い日・強い日も2.5分。
+  // 筋力には2分以上あれば足り、2.5分と3〜3.5分の差は小さい（Grgic 2017・Schoenfeld 2016）
   const STRENGTH_DAYS = [
-    { key: 'heavy', nm: '重い日', sets: 5, reps: 5, pct: 0.82, rest: 180, note: '' },
+    { key: 'heavy', nm: '重い日', sets: 5, reps: 5, pct: 0.82, rest: 150, note: '' },
     { key: 'light', nm: '軽い日', sets: 4, reps: 8, pct: 0.72, rest: 120, note: '胸（最下点）で1秒止めてから押す' },
-    { key: 'strong', nm: '強い日', sets: 5, reps: 3, pct: 0.88, rest: 210, note: '' },
+    { key: 'strong', nm: '強い日', sets: 5, reps: 3, pct: 0.88, rest: 150, note: '' },
   ];
+  const CROWDED = 6; // 土曜はジムが混む → 強い日（一番大事な日）を置かない
+  // 土曜が強い日なら、軽い日（なければ重い日）の曜日と入れ替える。入れ替えたら true
+  function avoidCrowded(plan) {
+    const tagOf = d => plan[d] && plan[d][0] && plan[d][0].tag;
+    if (tagOf(CROWDED) !== '強い日') return false;
+    const ds = Object.keys(plan).map(Number).filter(d => d !== CROWDED);
+    const to = ds.find(d => tagOf(d) === '軽い日') ?? ds.find(d => tagOf(d) === '重い日');
+    if (to == null) return false;
+    [plan[CROWDED], plan[to]] = [plan[to], plan[CROWDED]];
+    return true;
+  }
   function generate(spec) {
     const g = spec.goal, max = e1rm(Number(g.current_w), Number(g.current_r)) || Number(g.target) * 0.7;
     const days = (spec.days || []).slice().sort((a, b) => (a + 6) % 7 - (b + 6) % 7); // 月始まり
@@ -22,6 +35,7 @@
       const t = STRENGTH_DAYS.find(x => x.key === order[i % order.length]);
       plan[d] = [{ ex: g.ex, sets: t.sets, reps: t.reps, weight: r25(max * t.pct), rest: t.rest, note: t.note, tag: t.nm }];
     });
+    avoidCrowded(plan);
     return plan;
   }
   // AIが出した文を取り込む。行の形：「月: ベンチプレス 5x5 62.5kg 休憩3分」
@@ -40,7 +54,19 @@
     });
     return n ? plan : null;
   }
-  function active(d) { return (d.programs || []).find(p => p.active) || null; }
+  function active(d) { const p = (d.programs || []).find(p => p.active) || null; if (p) upgrade(p); return p; }
+  // 2026-10-10以前に作ったメニューを今の型に直す（休憩3〜3.5分→2.5分、土曜の強い日を入れ替え）。1回だけ保存
+  const upgraded = new Set();
+  function upgrade(prog) {
+    if (upgraded.has(prog.id)) return; upgraded.add(prog.id);
+    const plan = (prog.spec || {}).plan; if (!plan) return;
+    let msg = [];
+    Object.values(plan).flat().forEach(r => { if ((r.tag === '重い日' || r.tag === '強い日') && r.rest > 150) { r.rest = 150; if (!msg[0]) msg[0] = '休憩を2.5分に短縮'; } });
+    if (prog.spec.type === 'strength' && avoidCrowded(plan)) msg.push('土曜の強い日を平日へ移動');
+    if (!msg.length) return;
+    G.write('gq_save_program', { p: { id: prog.id, name: prog.name, spec: prog.spec, active: true } })
+      .then(() => G.toast('メニューを直しました：' + msg.filter(Boolean).join('・'))).catch(() => upgraded.delete(prog.id));
+  }
   function todayKey() { return G.jst().getUTCDay(); }
   function weekNo(prog) { const s = new Date((prog.spec.started || prog.created_at.slice(0, 10)) + 'T00:00:00+09:00').getTime(); return Math.floor((Date.now() - s) / (7 * G.DAY)) + 1; }
   function isDeload(prog) { const e = Number(prog.spec.deload_every) || 4; return weekNo(prog) % (e + 1) === 0; }
@@ -138,6 +164,7 @@
         <div id="planBox">${planHtml()}</div>
         <button class="btn primary wide" id="save" ${plan ? '' : 'disabled'}>保存する</button>
         ${prog ? '<button class="btn wide ghost" id="stopP">このメニューをやめる</button>' : ''}
+        <p class="muted">休憩は重い日・強い日も2.5分（台を使える20分に準備運動込みで収まる）。土曜は混むので強い日は入れない。</p>
         <p class="muted">上げ方：同じ曜日で2回連続「全セット達成・きつさ8以下」なら次回+2.5kg（脚は+5kg）。2回連続未達なら-10%。4週ごとに1週「軽く」（重量-15%・セット半分）。</p>`;
       bind();
     };
