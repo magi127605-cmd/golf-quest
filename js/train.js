@@ -73,7 +73,7 @@
         <div class="ttl" style="font-weight:700">${G.esc(prog.name)}</div>
         ${gs ? `<div class="muted">推定1RM ${G.n1(gs.cur)}kg → 目標 ${gs.target}kg${gs.weeks ? `（約${gs.weeks}週・${gs.eta.getFullYear()}年${gs.eta.getMonth() + 1}月ごろ）` : ''}</div>${G.meter(Math.max(0, gs.cur - gs.start), Math.max(1, gs.target - gs.start), gs.cur >= gs.target)}` : ''}
         ${progDays.map(dk => { const rows = G.program.menuFor(prog, dk); const isToday = dk === today; return `<div class="item ${isToday ? 'done' : ''}"><div class="row between"><div class="ttl">${DOW[dk]}曜 ${rows[0] && rows[0].tag ? '<span class="tag">' + G.esc(rows[0].tag) + '</span>' : ''}${isToday ? '<span class="tag ok">今日</span>' : ''}</div><button class="btn small ${isToday ? 'primary' : ''}" data-prog-day="${dk}">開始</button></div><div class="sub">${rows.map(x => `${G.esc(x.ex)} ${x.sets}×${x.reps}${x.w !== '' ? ' ' + x.w + 'kg' : ''}`).join('・')}</div></div>`; }).join('')}
-        ${G.program.progression(d, prog, today).map(p => `<div class="note ok">${G.esc(p.msg)}</div>`).join('')}
+        ${G.program.progression(d, prog, today).filter(p => p.msg).map(p => `<div class="note ok">${G.esc(p.msg)}</div>`).join('')}
       </div>` : ''}
 
       <div class="card">

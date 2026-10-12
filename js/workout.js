@@ -175,7 +175,7 @@
       const d = G.data();
       if (W.kind === 'custom' && W.program_id) {
         const prog = G.program.active(d); const items = prog ? G.program.progression(d, prog, W.day_key) : [];
-        if (items.length && G.confirmBox(items.map(p => p.msg).join('\n') + '\n\nメニューの重量を書き換えますか？')) { try { await G.program.applyProgression(d, prog, items); G.toast('重量を更新しました'); } catch (e) { G.toast(e.message); } }
+        if (items.length && G.confirmBox(items.filter(p => p.msg).map(p => p.msg).join('\n') + '\n\nメニューの重量を書き換えますか？')) { try { await G.program.applyProgression(d, prog, items); G.toast('重量を更新しました'); } catch (e) { G.toast(e.message); } }
       } else if (G.train && (W.kind === 'explosive' || W.kind === 'big3')) {
         const p = G.train.progression(d, W.kind, W.course); if (p.length) alert(p.map(x => x.msg).join('\n'));
       }

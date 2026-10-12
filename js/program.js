@@ -77,8 +77,29 @@
     return rows.map(r => ({ ex: r.ex, sets: dl ? Math.max(1, Math.ceil(r.sets / 2)) : r.sets, reps: r.reps, rest: r.rest || 150, weight: true, inc: r.inc || (isLower(r.ex) ? 5 : 2.5),
       w: r.weight != null ? (dl ? r25(r.weight * 0.85) : r.weight) : '', note: (dl ? '【軽く週】' : '') + (r.note || ''), tag: r.tag || '' }));
   }
-  // 次回の重量提案（2-for-2：同じ曜日の直近2回、全セット達成かつRPE8以下 → 上げる。2回連続未達 → -10%）
+  // 次回の重量提案（自分で決めたメニュー・取り込んだメニュー＝同じ曜日の直近2回、全セット達成かつRPE8以下 → 上げる。2回連続未達 → -10%）
+  // 波状（重い日・軽い日・強い日）は3日を連動させる：曜日を問わず直近2回の記録で判定し、3日まとめて上げ下げする
+  // （2026-10-12 本人要望。曜日ごとだと軽い日が先に上がって比率が崩れ、ラックが使えず休んだ曜日はそこで止まっていた）
+  function linkedProgression(d, prog) {
+    const plan = prog.spec.plan || {};
+    const rowOf = dk => (plan[dk] || []).find(r => r.tag && r.weight != null);
+    const ss = d.workouts.filter(w => w.kind === 'custom' && w.program_id === prog.id && rowOf(w.day_key)).slice(-2);
+    if (ss.length < 2) return [];
+    const res = ss.map(w => {
+      const r = rowOf(w.day_key), p = (w.sets || []).filter(s => s.ex === r.ex && Number(s.weight) === Number(r.weight));
+      return p.length ? { hit: p.length >= r.sets && p.every(s => s.reps >= r.reps && (s.rpe || 0) <= 8), fail: p.some(s => s.reps < r.reps) } : null;
+    });
+    if (res.some(x => !x)) return []; // 軽く週・重さを変えた直後の記録は数えない
+    const rows = Object.keys(plan).map(Number).sort((a, b) => (a + 6) % 7 - (b + 6) % 7).map(dk => ({ dk, r: rowOf(dk) })).filter(x => x.r);
+    const ex = rows[0].r.ex, inc = rows[0].r.inc || (isLower(ex) ? 5 : 2.5);
+    const mk = (f, head) => rows.map((x, i) => ({ ex: x.r.ex, day: x.dk, from: x.r.weight, to: f(Number(x.r.weight)),
+      msg: i ? '' : head + rows.map(y => `${DOW[y.dk]}（${y.r.tag}）${y.r.weight}→${f(Number(y.r.weight))}kg`).join('・') }));
+    if (res.every(x => x.hit)) return mk(w => w + inc, `${ex}：2回続けて全セット達成（余裕あり）。3日まとめて +${inc}kg：`);
+    if (res.every(x => x.fail)) return mk(w => r25(w * 0.9), `${ex}：2回続けて未達。3日まとめて -10%：`);
+    return [];
+  }
   function progression(d, prog, day) {
+    if (prog.spec.type === 'strength' && Object.values(prog.spec.plan || {}).flat().some(r => r.tag)) return linkedProgression(d, prog);
     const ss = d.workouts.filter(w => w.kind === 'custom' && w.program_id === prog.id && w.day_key === day).slice(-2);
     if (ss.length < 2) return [];
     const out = [];
@@ -109,7 +130,8 @@
     const cur = pts.length ? Math.max(...pts.slice(-3).map(p => p.v)) : start; // 軽い日で下がって見えないよう直近3回の最高
     const heavy = Object.values(prog.spec.plan || {}).flat().filter(r => r.ex === g.ex && r.weight).reduce((a, r) => Math.max(a, Number(r.weight)), 0);
     const inc = isLower(g.ex) ? 5 : 2.5;
-    const weeks = heavy && Number(g.target) > heavy ? Math.ceil((Number(g.target) - heavy) / inc * 2) : 0; // 2週に1段
+    // 2週に1段で見積もる（3日連動で速く上がる時期もあるが、続くほど失敗が増えるので控えめに）
+    const weeks = heavy && Number(g.target) > heavy ? Math.ceil((Number(g.target) - heavy) / inc * 2) : 0;
     return { start, cur, target: Number(g.target), pts, weeks, eta: weeks ? new Date(Date.now() + weeks * 7 * G.DAY) : null, heavy };
   }
   function chart(pts, target) {
@@ -165,7 +187,7 @@
         <button class="btn primary wide" id="save" ${plan ? '' : 'disabled'}>保存する</button>
         ${prog ? '<button class="btn wide ghost" id="stopP">このメニューをやめる</button>' : ''}
         <p class="muted">休憩は重い日・強い日も2.5分（台を使える20分に準備運動込みで収まる）。土曜は混むので強い日は入れない。</p>
-        <p class="muted">上げ方：同じ曜日で2回連続「全セット達成・きつさ8以下」なら次回+2.5kg（脚は+5kg）。2回連続未達なら-10%。4週ごとに1週「軽く」（重量-15%・セット半分）。</p>`;
+        <p class="muted">上げ方：筋力（波状）の型は、曜日を問わず2回続けて「全セット達成・きつさ8以下」なら重い日・軽い日・強い日を<b>まとめて</b>+2.5kg（脚は+5kg）。2回続けて未達ならまとめて-10%。休んだ曜日があっても止まらない。自分で決めたメニューは同じ曜日の2回で判定。4週ごとに1週「軽く」（重量-15%・セット半分）。</p>`;
       bind();
     };
     const planHtml = () => {
@@ -233,7 +255,7 @@
       ${menu.length ? `${menu.map(x => `<div class="item"><div class="ttl">${G.esc(x.ex)} ${x.reps}回 × ${x.sets}セット ${x.w !== '' ? x.w + 'kg' : ''} ${x.tag ? '<span class="tag">' + G.esc(x.tag) + '</span>' : ''}</div><div class="sub">休憩${Math.round(x.rest / 60 * 10) / 10}分 ${G.esc(x.note)}</div></div>`).join('')}
         ${doneToday ? '<div class="note ok">今日の分は記録済み。</div>' : ''}<button class="btn primary wide big" id="startCustom">今日のメニューを開始</button>`
       : `<p class="muted">今日（${DOW[day]}）は休み。次は${DOW[next]}曜。</p>`}
-      ${progression(d, prog, day).map(p => `<div class="note ok">${G.esc(p.msg)}</div>`).join('')}
+      ${progression(d, prog, day).filter(p => p.msg).map(p => `<div class="note ok">${G.esc(p.msg)}</div>`).join('')}
     </div>`;
   }
 

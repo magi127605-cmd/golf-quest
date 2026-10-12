@@ -1,9 +1,9 @@
 /* オフライン対応。VERSION を上げると次回起動時に新しいファイルに入れ替わる */
-const VERSION = 'gq-v1.6.2';
+const VERSION = 'gq-v1.6.3';
 const FILES = [
-  './', './index.html', './style.css?v=1.6.2', './manifest.webmanifest',
-  './js/config.js?v=1.6.2', './js/core.js?v=1.6.2', './js/rank.js?v=1.6.2', './js/xp.js?v=1.6.2', './js/home.js?v=1.6.2', './js/program.js?v=1.6.2', './js/maxes.js?v=1.6.2', './js/diagnose.js?v=1.6.2', './js/workout.js?v=1.6.2', './js/train.js?v=1.6.2', './js/range.js?v=1.6.2',
-  './js/measure.js?v=1.6.2', './js/yamada.js?v=1.6.2', './js/settings.js?v=1.6.2', './js/boot.js?v=1.6.2',
+  './', './index.html', './style.css?v=1.6.3', './manifest.webmanifest',
+  './js/config.js?v=1.6.3', './js/core.js?v=1.6.3', './js/rank.js?v=1.6.3', './js/xp.js?v=1.6.3', './js/home.js?v=1.6.3', './js/program.js?v=1.6.3', './js/maxes.js?v=1.6.3', './js/diagnose.js?v=1.6.3', './js/workout.js?v=1.6.3', './js/train.js?v=1.6.3', './js/range.js?v=1.6.3',
+  './js/measure.js?v=1.6.3', './js/yamada.js?v=1.6.3', './js/settings.js?v=1.6.3', './js/boot.js?v=1.6.3',
   './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png', './icons/maskable-512.png',
 ];
 self.addEventListener('install', e => {
