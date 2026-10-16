@@ -73,7 +73,7 @@
         <div class="ttl" style="font-weight:700">${G.esc(prog.name)}</div>
         ${gs ? `<div class="muted">推定1RM ${G.n1(gs.cur)}kg → 目標 ${gs.target}kg${gs.weeks ? `（約${gs.weeks}週・${gs.eta.getFullYear()}年${gs.eta.getMonth() + 1}月ごろ）` : ''}</div>${G.meter(Math.max(0, gs.cur - gs.start), Math.max(1, gs.target - gs.start), gs.cur >= gs.target)}` : ''}
         ${progDays.map(dk => { const rows = G.program.menuFor(prog, dk); const isToday = dk === today; return `<div class="item ${isToday ? 'done' : ''}"><div class="row between"><div class="ttl">${DOW[dk]}曜 ${rows[0] && rows[0].tag ? '<span class="tag">' + G.esc(rows[0].tag) + '</span>' : ''}${isToday ? '<span class="tag ok">今日</span>' : ''}</div><button class="btn small ${isToday ? 'primary' : ''}" data-prog-day="${dk}">開始</button></div><div class="sub">${rows.map(x => `${G.esc(x.ex)} ${x.sets}×${x.reps}${x.w !== '' ? ' ' + x.w + 'kg' : ''}`).join('・')}</div></div>`; }).join('')}
-        ${G.program.progression(d, prog, today).filter(p => p.msg).map(p => `<div class="note ok">${G.esc(p.msg)}</div>`).join('')}
+        ${G.program.progHtml(d, prog, today)}
       </div>` : ''}
 
       <div class="card">
@@ -106,6 +106,7 @@
       G.workout.start({ kind: 'explosive', course: m.course, title: '爆発トレ', exercises: MENU[m.course].map(x => ({ ex: x.ex, rest: x.rest, mode: 'speed', note: x.tip, sets: Array.from({ length: x.sets }, () => ({ reps: x.reps })) })) });
     };
     const b3 = G.$('#startB3'); if (b3) b3.onclick = () => G.workout.start({ kind: 'big3', course: m.course, title: 'BIG3', exercises: MENU.big3.map(x => ({ ex: x.ex, rest: x.rest, mode: 'rpe', sets: Array.from({ length: x.sets }, () => ({ reps: x.reps, weight: (m.lifts || {})[x.ex] ?? '' })) })) });
+    if (prog) G.program.bindApply(G.view, d, prog, today);
     G.view.querySelectorAll('[data-prog-day]').forEach(b => b.onclick = () => {
       const dk = Number(b.dataset.progDay), rows = G.program.menuFor(prog, dk);
       G.workout.start({ kind: 'custom', program_id: prog.id, day_key: dk, title: `${prog.name}・${DOW[dk]}曜${rows[0] && rows[0].tag ? ' ' + rows[0].tag : ''}`,

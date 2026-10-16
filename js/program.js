@@ -82,15 +82,23 @@
   // （2026-10-12 本人要望。曜日ごとだと軽い日が先に上がって比率が崩れ、ラックが使えず休んだ曜日はそこで止まっていた）
   function linkedProgression(d, prog) {
     const plan = prog.spec.plan || {};
-    const rowOf = dk => (plan[dk] || []).find(r => r.tag && r.weight != null);
-    const ss = d.workouts.filter(w => w.kind === 'custom' && w.program_id === prog.id && rowOf(w.day_key)).slice(-2);
+    const tagged = Object.keys(plan).map(Number).map(dk => ({ dk, r: (plan[dk] || []).find(r => r.tag && r.weight != null) })).filter(x => x.r);
+    // 記録がどの日のメニューかは「重さ」で決める（曜日の入れ替え・休んだ曜日があっても数える）
+    // 重量を書き換えた後（weights_at）の記録だけを数え、古い重さの記録は飛ばす
+    // （2026-10-16 事故：月曜を60→62.5に上げた直後、10/10と10/15に強い日65kgを2回達成したのに、間に挟まった月曜60kgの記録で判定が止まっていた）
+    const since = prog.spec.weights_at || '';
+    const rowFor = w => {
+      const ws = (w.sets || []);
+      const hits = tagged.filter(x => ws.some(s => s.ex === x.r.ex && Number(s.weight) === Number(x.r.weight)));
+      return (hits.find(x => x.dk === w.day_key) || hits[0] || {}).r;
+    };
+    const ss = d.workouts.filter(w => w.kind === 'custom' && w.program_id === prog.id && (!since || w.done_at > since) && rowFor(w)).slice(-2);
     if (ss.length < 2) return [];
     const res = ss.map(w => {
-      const r = rowOf(w.day_key), p = (w.sets || []).filter(s => s.ex === r.ex && Number(s.weight) === Number(r.weight));
-      return p.length ? { hit: p.length >= r.sets && p.every(s => s.reps >= r.reps && (s.rpe || 0) <= 8), fail: p.some(s => s.reps < r.reps) } : null;
+      const r = rowFor(w), p = (w.sets || []).filter(s => s.ex === r.ex && Number(s.weight) === Number(r.weight));
+      return { hit: p.length >= r.sets && p.every(s => s.reps >= r.reps && (s.rpe || 0) <= 8), fail: p.some(s => s.reps < r.reps) };
     });
-    if (res.some(x => !x)) return []; // 軽く週・重さを変えた直後の記録は数えない
-    const rows = Object.keys(plan).map(Number).sort((a, b) => (a + 6) % 7 - (b + 6) % 7).map(dk => ({ dk, r: rowOf(dk) })).filter(x => x.r);
+    const rows = tagged.slice().sort((a, b) => (a.dk + 6) % 7 - (b.dk + 6) % 7);
     const ex = rows[0].r.ex, inc = rows[0].r.inc || (isLower(ex) ? 5 : 2.5);
     const mk = (f, head) => rows.map((x, i) => ({ ex: x.r.ex, day: x.dk, from: x.r.weight, to: f(Number(x.r.weight)),
       msg: i ? '' : head + rows.map(y => `${DOW[y.dk]}（${y.r.tag}）${y.r.weight}→${f(Number(y.r.weight))}kg`).join('・') }));
@@ -117,6 +125,7 @@
   async function applyProgression(d, prog, items) {
     const spec = JSON.parse(JSON.stringify(prog.spec));
     items.forEach(it => { (spec.plan[it.day] || []).forEach(r => { if (r.ex === it.ex && Number(r.weight) === Number(it.from)) r.weight = it.to; }); });
+    spec.weights_at = new Date().toISOString(); // これより前の記録は次の判定に数えない
     await G.write('gq_save_program', { p: { id: prog.id, name: prog.name, spec, active: true } });
   }
   // 目標への進み具合（推定1RM）
@@ -255,9 +264,20 @@
       ${menu.length ? `${menu.map(x => `<div class="item"><div class="ttl">${G.esc(x.ex)} ${x.reps}回 × ${x.sets}セット ${x.w !== '' ? x.w + 'kg' : ''} ${x.tag ? '<span class="tag">' + G.esc(x.tag) + '</span>' : ''}</div><div class="sub">休憩${Math.round(x.rest / 60 * 10) / 10}分 ${G.esc(x.note)}</div></div>`).join('')}
         ${doneToday ? '<div class="note ok">今日の分は記録済み。</div>' : ''}<button class="btn primary wide big" id="startCustom">今日のメニューを開始</button>`
       : `<p class="muted">今日（${DOW[day]}）は休み。次は${DOW[next]}曜。</p>`}
-      ${progression(d, prog, day).filter(p => p.msg).map(p => `<div class="note ok">${G.esc(p.msg)}</div>`).join('')}
+      ${progHtml(d, prog, day)}
     </div>`;
   }
 
-  G.program = { active, todayKey, menuFor, progression, applyProgression, goalStatus, card, e1rm, DOW };
+  // 重量アップ（ダウン）の知らせ＋その場で書き換えるボタン（記録の直後に断った・見逃した時もここから直せる）
+  function progHtml(d, prog, day) {
+    const items = progression(d, prog, day); if (!items.length) return '';
+    return items.filter(p => p.msg).map(p => `<div class="note ok">${G.esc(p.msg)}</div>`).join('') + '<button class="btn small primary" data-prog-apply>メニューの重量を書き換える</button>';
+  }
+  function bindApply(root, d, prog, day) {
+    root.querySelectorAll('[data-prog-apply]').forEach(b => b.onclick = async () => {
+      b.disabled = true;
+      try { await applyProgression(d, prog, progression(d, prog, day)); G.toast('重量を更新しました'); G.route(); } catch (e) { G.toast(e.message); b.disabled = false; }
+    });
+  }
+  G.program = { active, progHtml, bindApply, todayKey, menuFor, progression, applyProgression, goalStatus, card, e1rm, DOW };
 })();
