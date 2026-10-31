@@ -68,8 +68,8 @@
       .then(() => G.toast('メニューを直しました：' + msg.filter(Boolean).join('・'))).catch(() => upgraded.delete(prog.id));
   }
   function todayKey() { return G.jst().getUTCDay(); }
-  function weekNo(prog) { const s = new Date((prog.spec.started || prog.created_at.slice(0, 10)) + 'T00:00:00+09:00').getTime(); return Math.floor((Date.now() - s) / (7 * G.DAY)) + 1; }
-  function isDeload(prog) { const e = Number(prog.spec.deload_every) || 4; return weekNo(prog) % (e + 1) === 0; }
+  function weekNo(prog, at) { const s = new Date((prog.spec.started || prog.created_at.slice(0, 10)) + 'T00:00:00+09:00').getTime(); return Math.floor(((at ? new Date(at).getTime() : Date.now()) - s) / (7 * G.DAY)) + 1; }
+  function isDeload(prog, at) { const e = Number(prog.spec.deload_every) || 4; return weekNo(prog, at) % (e + 1) === 0; }
   // 今日のメニュー（軽く週は重量-15%・セット半分）
   function menuFor(prog, day) {
     const rows = (prog.spec.plan || {})[day] || [];
@@ -92,7 +92,8 @@
       const hits = tagged.filter(x => ws.some(s => s.ex === x.r.ex && Number(s.weight) === Number(x.r.weight)));
       return (hits.find(x => x.dk === w.day_key) || hits[0] || {}).r;
     };
-    const ss = d.workouts.filter(w => w.kind === 'custom' && w.program_id === prog.id && (!since || w.done_at > since) && rowFor(w)).slice(-2);
+    // 軽く週の記録は判定に数えない（2026-10-31 事故：軽く週の木曜 70→60kg×3回 が土曜の軽い日60kg×8回の「未達」と見なされ、-10%が出た）
+    const ss = d.workouts.filter(w => w.kind === 'custom' && w.program_id === prog.id && (!since || w.done_at > since) && !isDeload(prog, w.done_at) && rowFor(w)).slice(-2);
     if (ss.length < 2) return [];
     const res = ss.map(w => {
       const r = rowFor(w), p = (w.sets || []).filter(s => s.ex === r.ex && Number(s.weight) === Number(r.weight));
@@ -108,7 +109,7 @@
   }
   function progression(d, prog, day) {
     if (prog.spec.type === 'strength' && Object.values(prog.spec.plan || {}).flat().some(r => r.tag)) return linkedProgression(d, prog);
-    const ss = d.workouts.filter(w => w.kind === 'custom' && w.program_id === prog.id && w.day_key === day).slice(-2);
+    const ss = d.workouts.filter(w => w.kind === 'custom' && w.program_id === prog.id && w.day_key === day && !isDeload(prog, w.done_at)).slice(-2);
     if (ss.length < 2) return [];
     const out = [];
     ((prog.spec.plan || {})[day] || []).forEach(row => {
