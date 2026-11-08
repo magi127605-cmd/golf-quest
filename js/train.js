@@ -73,6 +73,8 @@
         <div class="ttl" style="font-weight:700">${G.esc(prog.name)}</div>
         ${gs ? `<div class="muted">推定1RM ${G.n1(gs.cur)}kg → 目標 ${gs.target}kg${gs.weeks ? `（約${gs.weeks}週・${gs.eta.getFullYear()}年${gs.eta.getMonth() + 1}月ごろ）` : ''}</div>${G.meter(Math.max(0, gs.cur - gs.start), Math.max(1, gs.target - gs.start), gs.cur >= gs.target)}` : ''}
         ${progDays.map(dk => { const rows = G.program.menuFor(prog, dk); const isToday = dk === today; return `<div class="item ${isToday ? 'done' : ''}"><div class="row between"><div class="ttl">${DOW[dk]}曜 ${G.program.dayTag(rows) ? '<span class="tag">' + G.esc(G.program.dayTag(rows)) + '</span>' : ''}${isToday ? '<span class="tag ok">今日</span>' : ''}</div><button class="btn small ${isToday ? 'primary' : ''}" data-prog-day="${dk}">開始</button></div><div class="sub">${rows.map(x => G.esc(G.program.rowText(x))).join('・')}</div></div>`; }).join('')}
+        ${(() => { const b = G.program.bonusOf(prog); if (!b) return ''; const n = G.program.bonusDoneThisWeek(d, prog), bd = b.days.includes(today) ? today : b.days[0];
+          return `<div class="item ${n ? 'done' : ''}"><div class="row between"><div class="ttl">${b.days.map(x => DOW[x]).join('か')}（おまけ） <span class="tag">週${b.max || 1}回まで・やれたらやる</span>${n ? '<span class="tag ok">今週済み</span>' : ''}</div><button class="btn small" data-prog-day="${bd}">開始</button></div><div class="sub">${G.program.menuFor(prog, bd).map(x => G.esc(G.program.rowText(x))).join('・')}。台もジムも要らない（自転車・上り坂の早歩きでも可）。やらなくても達成率は下がらない</div></div>`; })()}
         ${G.program.progHtml(d, prog, today)}
       </div>` : ''}
 
@@ -109,7 +111,8 @@
     if (prog) G.program.bindApply(G.view, d, prog, today);
     G.view.querySelectorAll('[data-prog-day]').forEach(b => b.onclick = () => {
       const dk = Number(b.dataset.progDay), rows = G.program.menuFor(prog, dk);
-      G.workout.start({ kind: 'custom', program_id: prog.id, day_key: dk, title: `${prog.name}・${DOW[dk]}曜${G.program.dayTag(rows) ? ' ' + G.program.dayTag(rows) : ''}`,
+      if (G.program.isBonusDay(prog, dk)) { const b2 = G.program.bonusOf(prog); if (G.program.bonusDoneThisWeek(d, prog) >= (b2.max || 1) && !G.confirmBox('おまけは今週もうやっています（週1回まで）。それでも始めますか？')) return; }
+      G.workout.start({ kind: 'custom', program_id: prog.id, day_key: dk, title: `${prog.name}・${DOW[dk]}曜${G.program.isBonusDay(prog, dk) ? '（おまけ）' : ''}${G.program.dayTag(rows) ? ' ' + G.program.dayTag(rows) : ''}`,
         exercises: rows.map(x => ({ ex: x.ex, rest: x.rest, mode: x.mode || 'rpe', nara: x.nara, cap: x.cap, note: x.note, sets: Array.from({ length: x.sets }, () => ({ reps: x.reps, weight: x.w })) })) });
     });
     G.view.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => { if (!G.confirmBox('この記録を取り消しますか？')) return; try { await G.write('gq_delete_row', { p_table: 'workouts', p_id: b.dataset.del }); G.toast('取り消しました'); G.route(); } catch (e) { G.toast(e.message); } });

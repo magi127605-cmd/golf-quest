@@ -33,6 +33,12 @@
     speed: '<span class="tag">速さ</span> <span class="muted" style="font-size:12px">記録は速さ1〜5。全レップ4以上が2回続いたら+2.5kg</span>',
     cardio: '<span class="tag">心肺</span> <span class="muted" style="font-size:12px">セット＝本数、回数＝分。4分の合図タイマー付き</span>',
   };
+  // おまけ枠（2026-11-08 本人決定）：決まった予定がない休日（火・水）に、台もジムも要らない心肺を「週1回まで・やれたらやる」
+  // 主役の種目は置かない（不定期の日に置くと飛ぶ→習慣が崩れ、重さの判定も止まる）。週の達成率には数えない
+  const bonusOf = prog => (prog && prog.spec.bonus && (prog.spec.bonus.rows || []).length) ? prog.spec.bonus : null;
+  const isBonusDay = (prog, dk) => { const b = bonusOf(prog); return !!b && (b.days || []).includes(dk) && !((prog.spec.plan || {})[dk] || []).length; };
+  const isBonusWorkout = (prog, w) => !!prog && w.kind === 'custom' && w.program_id === prog.id && isBonusDay(prog, w.day_key);
+  function bonusDoneThisWeek(d, prog) { const wk = G.weekKey(); return d.workouts.filter(w => isBonusWorkout(prog, w) && G.weekKey(w.done_at) === wk).length; }
   const dayTag = rows => ((rows || []).find(r => r.tag) || {}).tag || '';
 
   // 筋力の型（波状：重い日／軽い日／強い日）。Rhea 2002・Grgic 2018：週2〜3回・強度を日ごとに変える方が線形より伸びる
@@ -100,7 +106,7 @@
   function isDeload(prog, at) { const e = Number(prog.spec.deload_every) || 4; return weekNo(prog, at) % (e + 1) === 0; }
   // 今日のメニュー（軽く週は重量-15%・セット半分）
   function menuFor(prog, day) {
-    const rows = (prog.spec.plan || {})[day] || [];
+    const rows = (prog.spec.plan || {})[day] || (isBonusDay(prog, day) ? bonusOf(prog).rows : []);
     const dl = isDeload(prog);
     return rows.map(r => ({ ex: r.ex, sets: dl ? Math.max(1, Math.ceil(r.sets / 2)) : r.sets, reps: r.reps, rest: r.rest || 150, weight: true, inc: r.inc || (isLower(r.ex) ? 5 : 2.5),
       w: r.weight != null ? (dl ? Math.max(20, r25(r.weight * 0.85)) : r.weight) : '', note: (dl ? '【軽く週】' : '') + (r.note || ''), tag: r.tag || '', nara: !!r.nara, cap: r.cap || null,
@@ -296,6 +302,7 @@
         ${Object.keys(plan).map(Number).sort((a, b) => (a + 6) % 7 - (b + 6) % 7).map(dk => `<div class="item"><div class="ttl">${DOW[dk]}曜 ${dayTag(plan[dk]) ? '<span class="tag">' + G.esc(dayTag(plan[dk])) + '</span>' : ''}</div>
           ${plan[dk].map((r, i) => { const k = kindOf(r); return `<div class="grid3" data-row="${dk}:${i}" style="margin:6px 0">${KIND_HEAD[k] ? `<div style="grid-column:span 3">${KIND_HEAD[k]}</div>` : ''}<input class="r-ex" value="${G.esc(r.ex)}" placeholder="種目" style="grid-column:span 3"><input class="r-sets" type="number" value="${r.sets}" placeholder="${k === 'cardio' ? '本数' : 'セット'}"><input class="r-reps" type="number" value="${r.reps}" placeholder="${k === 'cardio' ? '分' : '回数'}">${k === 'cardio' ? '<span class="muted" style="align-self:center;font-size:13px">本数 × 分</span>' : `<input class="r-w" type="number" step="2.5" value="${r.weight ?? ''}" placeholder="kg">`}${k === 'nara' || k === 'speed' ? `<label class="muted" style="grid-column:span 2;align-self:center;font-size:13px">${k === 'nara' ? '上限 kg（最大の5割の目安）' : '上限 kg（診察OKまで20＝バーだけ。空欄で上限なし）'}</label><input class="r-cap" type="number" step="2.5" value="${r.cap ?? ''}" placeholder="上限kg">` : ''}<input class="r-note" value="${G.esc(r.note || '')}" placeholder="メモ" style="grid-column:span 2"><button class="btn small ghost r-del">削除</button></div>`; }).join('')}
           <div class="row"><button class="btn small" data-add="${dk}">＋種目を足す</button>${Object.keys(NARA_EX).map(ex => `<button class="btn small ghost" data-nara="${dk}:${ex}">＋慣らし：${ex}</button>`).join('')}<button class="btn small ghost" data-special="${dk}:speed">＋ハイプル（速さ）</button><button class="btn small ghost" data-special="${dk}:cardio">＋ノルウェー式4×4</button></div></div>`).join('')}
+          <label class="row" style="margin-top:10px;gap:8px;align-items:center"><input type="checkbox" id="bonusOn" ${spec.bonus ? 'checked' : ''} style="width:auto"> <span>おまけ枠：火・水のどちらか1回、ノルウェー式4×4（やれたらやる・週の達成率に数えない）</span></label>
           <div class="row" style="margin-top:8px"><span class="muted grow">曜日を足す：</span>${[1, 2, 3, 4, 5, 6, 0].filter(x => !plan[x]).map(x => `<button class="btn small ghost" data-addday="${x}">${DOW[x]}</button>`).join('')}</div></div>`;
     };
     const readForm = () => {
@@ -345,6 +352,7 @@
         readForm(); readPlan();
         if (plan) Object.keys(plan).forEach(k => { if (!plan[k].length) delete plan[k]; });
         if (!plan || !Object.keys(plan).length) { G.toast('先にメニューを組んでください'); return; }
+        const bo = G.$('#bonusOn'); if (bo) { if (bo.checked && !spec.bonus) spec.bonus = { days: [2, 3], max: 1, rows: [cardioRow()] }; if (!bo.checked) delete spec.bonus; }
         spec.plan = plan; spec.days = Object.keys(plan).map(Number); if (!spec.started) spec.started = G.todayKey();
         const name = G.$('#p_name').value.trim() || (spec.goal.ex ? `${spec.goal.ex}${spec.goal.target ? spec.goal.target + 'kg' : ''}計画` : '自分メニュー');
         G.$('#save').disabled = true;
@@ -386,5 +394,5 @@
       try { await applyProgression(d, prog, progression(d, prog, day)); G.toast('重量を更新しました'); G.route(); } catch (e) { G.toast(e.message); b.disabled = false; }
     });
   }
-  G.program = { active, progHtml, bindApply, todayKey, menuFor, rowText, dayTag, progression, applyProgression, goalStatus, card, e1rm, DOW };
+  G.program = { bonusOf, isBonusDay, isBonusWorkout, bonusDoneThisWeek, cardioRow, active, progHtml, bindApply, todayKey, menuFor, rowText, dayTag, progression, applyProgression, goalStatus, card, e1rm, DOW };
 })();
