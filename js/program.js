@@ -21,6 +21,19 @@
     return Math.max(20, r25((bw > 0 ? bw : 60) * k * 0.5));
   }
   const naraRow = ex => ({ ex, sets: 3, reps: 5, weight: 20, rest: 90, nara: true, cap: naraCap(ex), note: (NARA_EX[ex] || {}).note || 'あと5回できる所で止める' });
+  // 速さの種目（ハイプル）：重さより速さ（yamada教材の核）。記録は「速さ1〜5」。元気なうちに1番目にやる（NSCAの順番の原則）
+  // 上げ方：2回続けて全レップ速さ4以上→+2.5kg（上限まで）。2回続けて速さ2以下が出たら1段下げる。
+  // 上限の初期値20kg＝足首の診察でOKが出るまでバーだけ（2026-11-08 本人決定・かかと接地）
+  const speedRow = () => ({ ex: 'ハイプル', sets: 5, reps: 5, weight: 20, rest: 90, mode: 'speed', inc: 2.5, cap: 20, note: 'かかとを床につけたまま（つま先立ちしない）・膝上から胸の高さまで全力で引く。キャッチしない。遅くなったらそこで終了' });
+  // ノルウェー式4×4（自転車）：4分きつく×4本・間3分ゆっくり（NTNU）。最大心拍の85〜95%（30歳の目安≒165〜180拍）。足首があるので走らない
+  const cardioRow = () => ({ ex: 'ノルウェー式4×4（自転車）', sets: 4, reps: 4, weight: null, rest: 180, mode: 'interval', cardio: true, note: '準備5分は軽く漕ぐ。4分は「しゃべれない・4分がぎりぎり」。時間が押したら3本で切る' });
+  const kindOf = r => r.nara ? 'nara' : r.mode === 'speed' ? 'speed' : r.cardio || r.mode === 'interval' ? 'cardio' : 'main';
+  const KIND_HEAD = {
+    nara: '<span class="tag">慣らし</span> <span class="muted" style="font-size:12px">あと5回できる重さ・上限で止める</span>',
+    speed: '<span class="tag">速さ</span> <span class="muted" style="font-size:12px">記録は速さ1〜5。全レップ4以上が2回続いたら+2.5kg</span>',
+    cardio: '<span class="tag">心肺</span> <span class="muted" style="font-size:12px">セット＝本数、回数＝分。4分の合図タイマー付き</span>',
+  };
+  const dayTag = rows => ((rows || []).find(r => r.tag) || {}).tag || '';
 
   // 筋力の型（波状：重い日／軽い日／強い日）。Rhea 2002・Grgic 2018：週2〜3回・強度を日ごとに変える方が線形より伸びる
   // 休憩：ジムの台は20分しか使えない。準備運動（約5分）込みで収めるため重い日・強い日も2.5分。
@@ -90,14 +103,20 @@
     const rows = (prog.spec.plan || {})[day] || [];
     const dl = isDeload(prog);
     return rows.map(r => ({ ex: r.ex, sets: dl ? Math.max(1, Math.ceil(r.sets / 2)) : r.sets, reps: r.reps, rest: r.rest || 150, weight: true, inc: r.inc || (isLower(r.ex) ? 5 : 2.5),
-      w: r.weight != null ? (dl ? Math.max(20, r25(r.weight * 0.85)) : r.weight) : '', note: (dl ? '【軽く週】' : '') + (r.note || ''), tag: r.tag || '', nara: !!r.nara, cap: r.cap || null }));
+      w: r.weight != null ? (dl ? Math.max(20, r25(r.weight * 0.85)) : r.weight) : '', note: (dl ? '【軽く週】' : '') + (r.note || ''), tag: r.tag || '', nara: !!r.nara, cap: r.cap || null,
+      mode: kindOf(r) === 'speed' ? 'speed' : kindOf(r) === 'cardio' ? 'interval' : 'rpe', cardio: kindOf(r) === 'cardio' }));
+  }
+  // 1行の見せ方（カード・一覧で共通）
+  function rowText(x) {
+    if (x.cardio) return `${x.ex} ${x.reps}分×${x.sets}本`;
+    return `${x.ex} ${x.sets}×${x.reps}${x.w !== '' && x.w != null ? ' ' + x.w + 'kg' : ''}`;
   }
   // 次回の重量提案（自分で決めたメニュー・取り込んだメニュー＝同じ曜日の直近2回、全セット達成かつRPE8以下 → 上げる。2回連続未達 → -10%）
   // 波状（重い日・軽い日・強い日）は3日を連動させる：曜日を問わず直近2回の記録で判定し、3日まとめて上げ下げする
   // （2026-10-12 本人要望。曜日ごとだと軽い日が先に上がって比率が崩れ、ラックが使えず休んだ曜日はそこで止まっていた）
   function linkedProgression(d, prog) {
     const plan = prog.spec.plan || {};
-    const tagged = Object.keys(plan).map(Number).map(dk => ({ dk, r: (plan[dk] || []).find(r => r.tag && r.weight != null && !r.nara) })).filter(x => x.r);
+    const tagged = Object.keys(plan).map(Number).map(dk => ({ dk, r: (plan[dk] || []).find(r => r.tag && r.weight != null && kindOf(r) === 'main') })).filter(x => x.r);
     // 記録がどの日のメニューかは「重さ」で決める（曜日の入れ替え・休んだ曜日があっても数える）
     // 重量を書き換えた後（weights_at）の記録だけを数え、古い重さの記録は飛ばす
     // （2026-10-16 事故：月曜を60→62.5に上げた直後、10/10と10/15に強い日65kgを2回達成したのに、間に挟まった月曜60kgの記録で判定が止まっていた）
@@ -118,8 +137,8 @@
     const ex = rows[0].r.ex, inc = rows[0].r.inc || (isLower(ex) ? 5 : 2.5);
     const mk = (f, head) => rows.map((x, i) => ({ ex: x.r.ex, day: x.dk, from: x.r.weight, to: f(Number(x.r.weight)),
       msg: i ? '' : head + rows.map(y => `${DOW[y.dk]}（${y.r.tag}）${y.r.weight}→${f(Number(y.r.weight))}kg`).join('・') }));
-    if (res.every(x => x.hit)) return mk(w => w + inc, `${ex}：2回続けて全セット達成（余裕あり）。3日まとめて +${inc}kg：`);
-    if (res.every(x => x.fail)) return mk(w => r25(w * 0.9), `${ex}：2回続けて未達。3日まとめて -10%：`);
+    if (res.every(x => x.hit)) return mk(w => w + inc, `${ex}：2回続けて全セット達成（余裕あり）。${rows.length}日まとめて +${inc}kg：`);
+    if (res.every(x => x.fail)) return mk(w => r25(w * 0.9), `${ex}：2回続けて未達。${rows.length}日まとめて -10%：`);
     return [];
   }
   // 慣らし種目の上げ下げ（曜日を問わず、その種目のその重さの直近2回で判定。本命の種目の判定とは別に数える）
@@ -133,26 +152,48 @@
       if (!ss.length) return;
       if (ss[ss.length - 1].some(s => (s.rpe || 0) >= 8)) {
         const to = Math.max(20, w - inc);
-        if (to < w) out.push({ ex: r.ex, day: dk, from: w, to, nara: true, msg: `${r.ex}（慣らし）：きつさ8以上が出た。慣らしなので次回は ${to}kg に下げる` });
+        if (to < w) out.push({ ex: r.ex, day: dk, from: w, to, nara: true, kind: 'nara', msg: `${r.ex}（慣らし）：きつさ8以上が出た。慣らしなので次回は ${to}kg に下げる` });
         return;
       }
       if (ss.length < 2 || (cap && w >= cap)) return;
       const easy = ss.every(p => p.length >= r.sets && p.every(s => s.reps >= r.reps && s.rpe != null && s.rpe <= 5));
       if (!easy) return;
       const to = cap ? Math.min(cap, w + inc) : w + inc;
-      out.push({ ex: r.ex, day: dk, from: w, to, nara: true, msg: `${r.ex}（慣らし）：2回続けて「あと5回できる」で全セット達成。次回 +${G.n1(to - w)}kg → ${to}kg${cap && to >= cap ? '（上限。完治まではここで止める）' : ''}` });
+      out.push({ ex: r.ex, day: dk, from: w, to, nara: true, kind: 'nara', msg: `${r.ex}（慣らし）：2回続けて「あと5回できる」で全セット達成。次回 +${G.n1(to - w)}kg → ${to}kg${cap && to >= cap ? '（上限。完治まではここで止める）' : ''}` });
+    }));
+    return out;
+  }
+  // 速さの種目（ハイプル）の上げ下げ。慣らしと同じく種目ごとに別で数える（本命のベンチの判定とは混ぜない）
+  function speedProgression(d, prog) {
+    const plan = prog.spec.plan || {}, out = [], seen = new Set();
+    Object.keys(plan).map(Number).forEach(dk => (plan[dk] || []).forEach(r => {
+      if (kindOf(r) !== 'speed' || r.weight == null || seen.has(r.ex)) return; seen.add(r.ex);
+      const since = (prog.spec.nara_at || {})[r.ex] || '', w = Number(r.weight), inc = Number(r.inc) || 2.5, cap = Number(r.cap) || null;
+      const ss = d.workouts.filter(x => x.kind === 'custom' && x.program_id === prog.id && (!since || x.done_at > since) && !isDeload(prog, x.done_at))
+        .map(x => (x.sets || []).filter(s => s.ex === r.ex && Number(s.weight) === w)).filter(p => p.length).slice(-2);
+      if (ss.length < 2) return;
+      if (ss.every(p => p.some(s => s.speed != null && s.speed <= 2))) {
+        const to = Math.max(20, w - inc);
+        if (to < w) out.push({ ex: r.ex, day: dk, from: w, to, kind: 'speed', msg: `${r.ex}：2回続けて速さ2以下が出た。重すぎ。次回は ${to}kg に下げる` });
+        return;
+      }
+      if (cap && w >= cap) return;
+      const fast = ss.every(p => p.length >= r.sets && p.every(s => s.reps >= r.reps && s.speed != null && s.speed >= 4));
+      if (!fast) return;
+      const to = cap ? Math.min(cap, w + inc) : w + inc;
+      out.push({ ex: r.ex, day: dk, from: w, to, kind: 'speed', msg: `${r.ex}：2回続けて全レップ速い（速さ4以上）。次回 +${G.n1(to - w)}kg → ${to}kg${cap && to >= cap ? '（上限）' : ''}` });
     }));
     return out;
   }
   function progression(d, prog, day) {
-    return mainProgression(d, prog, day).concat(naraProgression(d, prog));
+    return mainProgression(d, prog, day).concat(naraProgression(d, prog), speedProgression(d, prog));
   }
   function mainProgression(d, prog, day) {
     if (prog.spec.type === 'strength' && Object.values(prog.spec.plan || {}).flat().some(r => r.tag)) return linkedProgression(d, prog);
     const ss = d.workouts.filter(w => w.kind === 'custom' && w.program_id === prog.id && w.day_key === day && !isDeload(prog, w.done_at)).slice(-2);
     if (ss.length < 2) return [];
     const out = [];
-    ((prog.spec.plan || {})[day] || []).filter(row => !row.nara).forEach(row => {
+    ((prog.spec.plan || {})[day] || []).filter(row => kindOf(row) === 'main' && row.weight != null).forEach(row => {
       const per = ss.map(w => (w.sets || []).filter(s => s.ex === row.ex && Number(s.weight) === Number(row.weight)));
       if (per.some(p => p.length === 0)) return;
       const inc = row.inc || (isLower(row.ex) ? 5 : 2.5);
@@ -166,13 +207,14 @@
   async function applyProgression(d, prog, items) {
     const spec = JSON.parse(JSON.stringify(prog.spec));
     const now = new Date().toISOString();
+    const kOf = it => it.kind || (it.nara ? 'nara' : 'main');
     items.forEach(it => {
-      const days = it.nara ? Object.keys(spec.plan) : [it.day]; // 慣らしは同じ種目を全曜日まとめて
-      days.forEach(dk => (spec.plan[dk] || []).forEach(r => { if (r.ex === it.ex && !!r.nara === !!it.nara && Number(r.weight) === Number(it.from)) r.weight = it.to; }));
+      const k = kOf(it), days = k !== 'main' ? Object.keys(spec.plan) : [it.day]; // 慣らし・速さは同じ種目を全曜日まとめて
+      days.forEach(dk => (spec.plan[dk] || []).forEach(r => { if (r.ex === it.ex && kindOf(r) === k && Number(r.weight) === Number(it.from)) r.weight = it.to; }));
     });
-    // これより前の記録は次の判定に数えない。慣らしの重さを変えても本命（ベンチ等）の判定はやり直さない
-    if (items.some(it => !it.nara)) spec.weights_at = now;
-    items.filter(it => it.nara).forEach(it => { spec.nara_at = Object.assign({}, spec.nara_at, { [it.ex]: now }); });
+    // これより前の記録は次の判定に数えない。慣らし・速さの重さを変えても本命（ベンチ等）の判定はやり直さない
+    if (items.some(it => kOf(it) === 'main')) spec.weights_at = now;
+    items.filter(it => kOf(it) !== 'main').forEach(it => { spec.nara_at = Object.assign({}, spec.nara_at, { [it.ex]: now }); });
     await G.write('gq_save_program', { p: { id: prog.id, name: prog.name, spec, active: true } });
   }
   // 目標への進み具合（推定1RM）
@@ -244,15 +286,17 @@
         ${prog ? '<button class="btn wide ghost" id="stopP">このメニューをやめる</button>' : ''}
         <p class="muted">休憩は重い日・強い日も2.5分（台を使える20分に準備運動込みで収まる）。土曜は混むので強い日は入れない。</p>
         <p class="muted">上げ方：筋力（波状）の型は、曜日を問わず2回続けて「全セット達成・きつさ8以下」なら重い日・軽い日・強い日を<b>まとめて</b>+2.5kg（脚は+5kg）。2回続けて未達ならまとめて-10%。休んだ曜日があっても止まらない。自分で決めたメニューは同じ曜日の2回で判定。4週ごとに1週「軽く」（重量-15%・セット半分）。</p>
-        <p class="muted">慣らし（デッド・スクワット等）：ケガが治って重くし始めた時に筋肉痛でつぶれないための準備。バー（20kg）から始め、2回続けて全セット「きつさ5以下（あと5回できる）」なら+5kg（スクワットは+2.5kg）。上限（最大の5割の目安＝体重から推定）で止まる。きつさ8以上が1回でも出たら1段下げる。慣らしの重さを変えても本命の判定はやり直さない。推定MAXには数えない。</p>`;
+        <p class="muted">慣らし（デッド・スクワット等）：ケガが治って重くし始めた時に筋肉痛でつぶれないための準備。バー（20kg）から始め、2回続けて全セット「きつさ5以下（あと5回できる）」なら+5kg（スクワットは+2.5kg）。上限（最大の5割の目安＝体重から推定）で止まる。きつさ8以上が1回でも出たら1段下げる。慣らしの重さを変えても本命の判定はやり直さない。推定MAXには数えない。</p>
+        <p class="muted">ハイプル（速さ）：その日の1番目。記録は重さではなく「速さ1〜5」。2回続けて全レップ4以上なら+2.5kg（上限まで）、2回続けて2以下が出たら1段下げる。yamadaの爆発トレの回数にも数える。ノルウェー式4×4：4分きつく×4本・間3分ゆっくり。開始ボタンで4分の合図、終わると自動で休憩3分。</p>`;
       bind();
     };
     const planHtml = () => {
       if (!plan) return '';
       return `<div class="card"><h3 style="margin-top:0">週のメニュー（数字は直せる）</h3>
-        ${Object.keys(plan).map(Number).sort((a, b) => (a + 6) % 7 - (b + 6) % 7).map(dk => `<div class="item"><div class="ttl">${DOW[dk]}曜 ${plan[dk][0] && plan[dk][0].tag ? '<span class="tag">' + G.esc(plan[dk][0].tag) + '</span>' : ''}</div>
-          ${plan[dk].map((r, i) => `<div class="grid3" data-row="${dk}:${i}" style="margin:6px 0">${r.nara ? '<div style="grid-column:span 3"><span class="tag">慣らし</span> <span class="muted" style="font-size:12px">あと5回できる重さ・上限で止める</span></div>' : ''}<input class="r-ex" value="${G.esc(r.ex)}" placeholder="種目" style="grid-column:span 3"><input class="r-sets" type="number" value="${r.sets}" placeholder="セット"><input class="r-reps" type="number" value="${r.reps}" placeholder="回数"><input class="r-w" type="number" step="2.5" value="${r.weight ?? ''}" placeholder="kg">${r.nara ? `<label class="muted" style="grid-column:span 2;align-self:center;font-size:13px">上限 kg（最大の5割の目安）</label><input class="r-cap" type="number" step="2.5" value="${r.cap ?? ''}" placeholder="上限kg">` : ''}<input class="r-note" value="${G.esc(r.note || '')}" placeholder="メモ" style="grid-column:span 2"><button class="btn small ghost r-del">削除</button></div>`).join('')}
-          <div class="row"><button class="btn small" data-add="${dk}">＋種目を足す</button>${Object.keys(NARA_EX).map(ex => `<button class="btn small ghost" data-nara="${dk}:${ex}">＋慣らし：${ex}</button>`).join('')}</div></div>`).join('')}</div>`;
+        ${Object.keys(plan).map(Number).sort((a, b) => (a + 6) % 7 - (b + 6) % 7).map(dk => `<div class="item"><div class="ttl">${DOW[dk]}曜 ${dayTag(plan[dk]) ? '<span class="tag">' + G.esc(dayTag(plan[dk])) + '</span>' : ''}</div>
+          ${plan[dk].map((r, i) => { const k = kindOf(r); return `<div class="grid3" data-row="${dk}:${i}" style="margin:6px 0">${KIND_HEAD[k] ? `<div style="grid-column:span 3">${KIND_HEAD[k]}</div>` : ''}<input class="r-ex" value="${G.esc(r.ex)}" placeholder="種目" style="grid-column:span 3"><input class="r-sets" type="number" value="${r.sets}" placeholder="${k === 'cardio' ? '本数' : 'セット'}"><input class="r-reps" type="number" value="${r.reps}" placeholder="${k === 'cardio' ? '分' : '回数'}">${k === 'cardio' ? '<span class="muted" style="align-self:center;font-size:13px">本数 × 分</span>' : `<input class="r-w" type="number" step="2.5" value="${r.weight ?? ''}" placeholder="kg">`}${k === 'nara' || k === 'speed' ? `<label class="muted" style="grid-column:span 2;align-self:center;font-size:13px">${k === 'nara' ? '上限 kg（最大の5割の目安）' : '上限 kg（診察OKまで20＝バーだけ。空欄で上限なし）'}</label><input class="r-cap" type="number" step="2.5" value="${r.cap ?? ''}" placeholder="上限kg">` : ''}<input class="r-note" value="${G.esc(r.note || '')}" placeholder="メモ" style="grid-column:span 2"><button class="btn small ghost r-del">削除</button></div>`; }).join('')}
+          <div class="row"><button class="btn small" data-add="${dk}">＋種目を足す</button>${Object.keys(NARA_EX).map(ex => `<button class="btn small ghost" data-nara="${dk}:${ex}">＋慣らし：${ex}</button>`).join('')}<button class="btn small ghost" data-special="${dk}:speed">＋ハイプル（速さ）</button><button class="btn small ghost" data-special="${dk}:cardio">＋ノルウェー式4×4</button></div></div>`).join('')}
+          <div class="row" style="margin-top:8px"><span class="muted grow">曜日を足す：</span>${[1, 2, 3, 4, 5, 6, 0].filter(x => !plan[x]).map(x => `<button class="btn small ghost" data-addday="${x}">${DOW[x]}</button>`).join('')}</div></div>`;
     };
     const readForm = () => {
       spec.goal = { ex: G.$('#g_ex').value.trim(), target: G.$('#g_target').value, current_w: G.$('#g_w').value, current_r: G.$('#g_r').value, deadline: G.$('#g_dl').value };
@@ -265,7 +309,7 @@
       G.view.querySelectorAll('[data-row]').forEach(row => {
         const [dk, i] = row.dataset.row.split(':').map(Number); const r = plan[dk][i]; if (!r) return;
         r.ex = row.querySelector('.r-ex').value.trim(); r.sets = Number(row.querySelector('.r-sets').value) || 1; r.reps = Number(row.querySelector('.r-reps').value) || 1;
-        const w = row.querySelector('.r-w').value; r.weight = w === '' ? null : Number(w); r.note = row.querySelector('.r-note').value;
+        const wi = row.querySelector('.r-w'); if (wi) r.weight = wi.value === '' ? null : Number(wi.value); r.note = row.querySelector('.r-note').value;
         const c = row.querySelector('.r-cap'); if (c) r.cap = c.value === '' ? null : Number(c.value);
       });
     };
@@ -288,9 +332,18 @@
         if (Object.values(plan).flat().some(r => r.nara && r.ex === ex) && !G.confirmBox(`${ex}の慣らしは別の曜日にもう入っています。週2回にしますか？（慣らしは週1回で足りる）`)) return;
         plan[dk].push(naraRow(ex)); render();
       });
+      G.view.querySelectorAll('[data-special]').forEach(b => b.onclick = () => {
+        readForm(); readPlan(); const [dk, k] = b.dataset.special.split(':');
+        const row = k === 'speed' ? speedRow() : cardioRow();
+        // 速さの種目は元気なうちに1番目（NSCAの順番の原則）。心肺はその日の最後
+        if (k === 'speed') plan[dk].unshift(row); else plan[dk].push(row);
+        render();
+      });
+      G.view.querySelectorAll('[data-addday]').forEach(b => b.onclick = () => { readForm(); readPlan(); plan[b.dataset.addday] = []; render(); });
       G.view.querySelectorAll('.r-del').forEach(b => b.onclick = () => { readForm(); readPlan(); const [dk, i] = b.closest('[data-row]').dataset.row.split(':').map(Number); plan[dk].splice(i, 1); if (!plan[dk].length) delete plan[dk]; render(); });
       G.$('#save').onclick = async () => {
         readForm(); readPlan();
+        if (plan) Object.keys(plan).forEach(k => { if (!plan[k].length) delete plan[k]; });
         if (!plan || !Object.keys(plan).length) { G.toast('先にメニューを組んでください'); return; }
         spec.plan = plan; spec.days = Object.keys(plan).map(Number); if (!spec.started) spec.started = G.todayKey();
         const name = G.$('#p_name').value.trim() || (spec.goal.ex ? `${spec.goal.ex}${spec.goal.target ? spec.goal.target + 'kg' : ''}計画` : '自分メニュー');
@@ -315,7 +368,7 @@
       <div class="row between"><h3 style="margin:0">${G.esc(prog.name)} <span class="tag">自分メニュー</span></h3><a class="btn small ghost" href="#program">編集</a></div>
       ${gs ? `<div class="muted">推定1RM ${G.n1(gs.cur)}kg → 目標 ${gs.target}kg${gs.weeks ? `（今の上げ幅なら約${gs.weeks}週・${gs.eta.getFullYear()}年${gs.eta.getMonth() + 1}月ごろ）` : ''}</div>${G.meter(Math.max(0, gs.cur - gs.start), Math.max(1, gs.target - gs.start), gs.cur >= gs.target)}${chart(gs.pts, gs.target)}` : ''}
       <p class="muted">第${weekNo(prog)}週${isDeload(prog) ? '・<b>軽く週</b>（重量-15%・セット半分）' : ''} ／ 今週 ${doneWk}/${days.length}回</p>
-      ${menu.length ? `${menu.map(x => `<div class="item"><div class="ttl">${G.esc(x.ex)} ${x.reps}回 × ${x.sets}セット ${x.w !== '' ? x.w + 'kg' : ''} ${x.tag ? '<span class="tag">' + G.esc(x.tag) + '</span>' : ''}</div><div class="sub">休憩${Math.round(x.rest / 60 * 10) / 10}分 ${G.esc(x.note)}</div></div>`).join('')}
+      ${menu.length ? `${menu.map(x => `<div class="item"><div class="ttl">${G.esc(x.ex)} ${x.cardio ? `${x.reps}分 × ${x.sets}本` : `${x.reps}回 × ${x.sets}セット ${x.w !== '' ? x.w + 'kg' : ''}`} ${x.tag ? '<span class="tag">' + G.esc(x.tag) + '</span>' : ''}${x.mode === 'speed' ? '<span class="tag">速さ</span>' : ''}${x.nara ? '<span class="tag">慣らし</span>' : ''}</div><div class="sub">休憩${Math.round(x.rest / 60 * 10) / 10}分 ${G.esc(x.note)}</div></div>`).join('')}
         ${doneToday ? '<div class="note ok">今日の分は記録済み。</div>' : ''}<button class="btn primary wide big" id="startCustom">今日のメニューを開始</button>`
       : `<p class="muted">今日（${DOW[day]}）は休み。次は${DOW[next]}曜。</p>`}
       ${progHtml(d, prog, day)}
@@ -333,5 +386,5 @@
       try { await applyProgression(d, prog, progression(d, prog, day)); G.toast('重量を更新しました'); G.route(); } catch (e) { G.toast(e.message); b.disabled = false; }
     });
   }
-  G.program = { active, progHtml, bindApply, todayKey, menuFor, progression, applyProgression, goalStatus, card, e1rm, DOW };
+  G.program = { active, progHtml, bindApply, todayKey, menuFor, rowText, dayTag, progression, applyProgression, goalStatus, card, e1rm, DOW };
 })();

@@ -6,11 +6,13 @@
   const EXPLOSIVE_EX = { home: ['jump_squat'], gym: ['high_pull', 'box_jump'] };
   const EXNAME = { jump_squat: 'ジャンプスクワット', high_pull: 'ハイプル', box_jump: 'ボックスジャンプ', squat: 'スクワット', dead: 'デッドリフト', bench: 'ベンチプレス' };
 
+  // 爆発トレとして数える記録：yamadaの爆発トレ、または自分メニューで速さを記録した種目（ハイプル等）を含む回（2026-11-08 本人の週メニューにハイプルを入れたため）
+  G.isExplosive = w => w.kind === 'explosive' || (w.sets || []).some(s => s.speed != null);
   function weeksSince(dateStr) { if (!dateStr) return 0; return Math.floor((Date.now() - new Date(dateStr + 'T00:00:00+09:00').getTime()) / (7 * G.DAY)); }
 
   // 48時間違反の数（爆発トレ同士の間隔が48時間未満）
   function restViolations(ws) {
-    const ex = ws.filter(w => w.kind === 'explosive').map(w => new Date(w.done_at).getTime()).sort((a, b) => a - b);
+    const ex = ws.filter(G.isExplosive).map(w => new Date(w.done_at).getTime()).sort((a, b) => a - b);
     let v = 0; for (let i = 1; i < ex.length; i++) if (ex[i] - ex[i - 1] < 48 * G.HOUR) v++;
     return v;
   }
@@ -35,7 +37,7 @@
     const ws = data.workouts.filter(w => G.weekKey(w.done_at) === wk), rs = data.ranges.filter(r => G.weekKey(r.done_at) === wk);
     const prog = G.program ? G.program.active(data) : null;
     if (prog) plan.custom = Object.keys(prog.spec.plan || {}).length;
-    const done = { explosive: ws.filter(w => w.kind === 'explosive').length, range: rs.filter(r => r.completed).length, big3: ws.filter(w => w.kind === 'big3').length, custom: ws.filter(w => w.kind === 'custom').length };
+    const done = { explosive: ws.filter(G.isExplosive).length, range: rs.filter(r => r.completed).length, big3: ws.filter(w => w.kind === 'big3').length, custom: ws.filter(w => w.kind === 'custom').length };
     const parts = [];
     ['explosive', 'range', 'big3', 'custom'].forEach(k => { if (plan[k] > 0) parts.push(Math.min(1, done[k] / plan[k])); });
     parts.push(restViolations(ws) === 0 && done.explosive <= 3 ? 1 : 0);
@@ -50,7 +52,7 @@
   function compute(data) {
     if (!data) return null;
     const m = data.member || {}, ws = data.workouts || [], rs = data.ranges || [], ms = data.measurements || [], sw = (data.swings || []).filter(s => !s.deleted);
-    const ex = ws.filter(w => w.kind === 'explosive'), b3 = ws.filter(w => w.kind === 'big3');
+    const ex = ws.filter(G.isExplosive), b3 = ws.filter(w => w.kind === 'big3');
     const rDone = rs.filter(r => r.completed);
     const exWeeks = byWeek(ex, 'done_at'); const weeks2 = Object.values(exWeeks).filter(n => n >= 2).length;
     const weeksSinceStart = weeksSince(m.started_at);

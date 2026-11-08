@@ -58,7 +58,7 @@ ${rd || 'なし'}`;
     const cr = centerRate(d.ranges);
     const sc = G.xp.score(d);
     const tw = r.thisWeek;
-    const ex = d.workouts.filter(w => w.kind === 'explosive'), lastEx = ex.length ? new Date(ex[ex.length - 1].done_at).getTime() : 0;
+    const ex = d.workouts.filter(G.isExplosive), lastEx = ex.length ? new Date(ex[ex.length - 1].done_at).getTime() : 0;
     const nextEx = lastEx + 48 * G.HOUR - Date.now();
     const pendQ = d.questions.filter(q => q.status === 'answered' && !G.S.seen[q.id]).length;
     const pendS = d.swings.filter(s => s.status === 'judged' && !G.S.seen[s.id]).length;

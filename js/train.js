@@ -14,8 +14,8 @@
       { ex: 'bench', sets: 3, reps: 5, rest: 180, inc: 2.5 },
     ],
   };
-  function lastExplosive(d) { const ex = d.workouts.filter(w => w.kind === 'explosive'); return ex.length ? ex[ex.length - 1] : null; }
-  function weekCount(d, kind) { const wk = G.weekKey(); return d.workouts.filter(w => w.kind === kind && G.weekKey(w.done_at) === wk).length; }
+  function lastExplosive(d) { const ex = d.workouts.filter(G.isExplosive); return ex.length ? ex[ex.length - 1] : null; }
+  function weekCount(d, kind) { const wk = G.weekKey(); return d.workouts.filter(w => (kind === 'explosive' ? G.isExplosive(w) : w.kind === kind) && G.weekKey(w.done_at) === wk).length; }
 
   // 次のレベル判定（仕様4章）。直近2回のセッションを見る
   function progression(d, kind, course) {
@@ -48,7 +48,7 @@
   function bestSet(sets) { let b = null; sets.forEach(s => { const v = (Number(s.weight) || 0) * 1000 + (Number(s.reps) || 0); if (!b || v > b.v) b = { v, s }; }); return b ? b.s : null; }
   function summary(w) {
     const by = {}; (w.sets || []).forEach(s => (by[disp(s.ex)] = by[disp(s.ex)] || []).push(s));
-    return Object.entries(by).map(([ex, ss]) => { const b = bestSet(ss); return `<div class="row between"><span>${G.esc(ex)} <span class="muted">${ss.length}セット</span></span><span class="muted">${b ? (b.weight != null ? b.weight + 'kg×' : '') + b.reps + (b.weight == null ? '回' : '') : ''}</span></div>`; }).join('');
+    return Object.entries(by).map(([ex, ss]) => { if (ss[0].cardio) { const hr = Math.max(0, ...ss.map(s => Number(s.hr) || 0)); return `<div class="row between"><span>${G.esc(ex)}</span><span class="muted">${ss.length}本×${ss[0].reps}分${hr ? '・最高' + hr + '拍' : ''}</span></div>`; } const b = bestSet(ss); return `<div class="row between"><span>${G.esc(ex)} <span class="muted">${ss.length}セット</span></span><span class="muted">${b ? (b.weight != null ? b.weight + 'kg×' : '') + b.reps + (b.weight == null ? '回' : '') : ''}</span></div>`; }).join('');
   }
 
   G.routes.train = function (arg) {
@@ -72,7 +72,7 @@
       ${prog ? `<div class="card">
         <div class="ttl" style="font-weight:700">${G.esc(prog.name)}</div>
         ${gs ? `<div class="muted">推定1RM ${G.n1(gs.cur)}kg → 目標 ${gs.target}kg${gs.weeks ? `（約${gs.weeks}週・${gs.eta.getFullYear()}年${gs.eta.getMonth() + 1}月ごろ）` : ''}</div>${G.meter(Math.max(0, gs.cur - gs.start), Math.max(1, gs.target - gs.start), gs.cur >= gs.target)}` : ''}
-        ${progDays.map(dk => { const rows = G.program.menuFor(prog, dk); const isToday = dk === today; return `<div class="item ${isToday ? 'done' : ''}"><div class="row between"><div class="ttl">${DOW[dk]}曜 ${rows[0] && rows[0].tag ? '<span class="tag">' + G.esc(rows[0].tag) + '</span>' : ''}${isToday ? '<span class="tag ok">今日</span>' : ''}</div><button class="btn small ${isToday ? 'primary' : ''}" data-prog-day="${dk}">開始</button></div><div class="sub">${rows.map(x => `${G.esc(x.ex)} ${x.sets}×${x.reps}${x.w !== '' ? ' ' + x.w + 'kg' : ''}`).join('・')}</div></div>`; }).join('')}
+        ${progDays.map(dk => { const rows = G.program.menuFor(prog, dk); const isToday = dk === today; return `<div class="item ${isToday ? 'done' : ''}"><div class="row between"><div class="ttl">${DOW[dk]}曜 ${G.program.dayTag(rows) ? '<span class="tag">' + G.esc(G.program.dayTag(rows)) + '</span>' : ''}${isToday ? '<span class="tag ok">今日</span>' : ''}</div><button class="btn small ${isToday ? 'primary' : ''}" data-prog-day="${dk}">開始</button></div><div class="sub">${rows.map(x => G.esc(G.program.rowText(x))).join('・')}</div></div>`; }).join('')}
         ${G.program.progHtml(d, prog, today)}
       </div>` : ''}
 
@@ -109,8 +109,8 @@
     if (prog) G.program.bindApply(G.view, d, prog, today);
     G.view.querySelectorAll('[data-prog-day]').forEach(b => b.onclick = () => {
       const dk = Number(b.dataset.progDay), rows = G.program.menuFor(prog, dk);
-      G.workout.start({ kind: 'custom', program_id: prog.id, day_key: dk, title: `${prog.name}・${DOW[dk]}曜${rows[0] && rows[0].tag ? ' ' + rows[0].tag : ''}`,
-        exercises: rows.map(x => ({ ex: x.ex, rest: x.rest, mode: 'rpe', nara: x.nara, cap: x.cap, note: x.note, sets: Array.from({ length: x.sets }, () => ({ reps: x.reps, weight: x.w })) })) });
+      G.workout.start({ kind: 'custom', program_id: prog.id, day_key: dk, title: `${prog.name}・${DOW[dk]}曜${G.program.dayTag(rows) ? ' ' + G.program.dayTag(rows) : ''}`,
+        exercises: rows.map(x => ({ ex: x.ex, rest: x.rest, mode: x.mode || 'rpe', nara: x.nara, cap: x.cap, note: x.note, sets: Array.from({ length: x.sets }, () => ({ reps: x.reps, weight: x.w })) })) });
     });
     G.view.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => { if (!G.confirmBox('この記録を取り消しますか？')) return; try { await G.write('gq_delete_row', { p_table: 'workouts', p_id: b.dataset.del }); G.toast('取り消しました'); G.route(); } catch (e) { G.toast(e.message); } });
   };

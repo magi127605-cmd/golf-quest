@@ -215,6 +215,7 @@ table.t td.num { text-align: right; font-variant-numeric: tabular-nums; }
 .rest-bar .btn { background: rgba(255,255,255,.18); color: #fff; }
 .rest-bar .btn.primary { background: #fff; color: var(--ai); }
 .rest-bar[hidden] { display: none; }
+.rest-bar.work { background: var(--shu); }
 .rest-bar .rest-t { flex: 1; font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .rest-bar .btn { min-height: 34px; padding: 4px 10px; font-size: 13px; }
 .settbl th { white-space: nowrap; }
