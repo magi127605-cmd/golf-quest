@@ -110,7 +110,7 @@
     G.view.querySelectorAll('[data-prog-day]').forEach(b => b.onclick = () => {
       const dk = Number(b.dataset.progDay), rows = G.program.menuFor(prog, dk);
       G.workout.start({ kind: 'custom', program_id: prog.id, day_key: dk, title: `${prog.name}・${DOW[dk]}曜${rows[0] && rows[0].tag ? ' ' + rows[0].tag : ''}`,
-        exercises: rows.map(x => ({ ex: x.ex, rest: x.rest, mode: 'rpe', note: x.note, sets: Array.from({ length: x.sets }, () => ({ reps: x.reps, weight: x.w })) })) });
+        exercises: rows.map(x => ({ ex: x.ex, rest: x.rest, mode: 'rpe', nara: x.nara, cap: x.cap, note: x.note, sets: Array.from({ length: x.sets }, () => ({ reps: x.reps, weight: x.w })) })) });
     });
     G.view.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => { if (!G.confirmBox('この記録を取り消しますか？')) return; try { await G.write('gq_delete_row', { p_table: 'workouts', p_id: b.dataset.del }); G.toast('取り消しました'); G.route(); } catch (e) { G.toast(e.message); } });
   };

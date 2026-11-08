@@ -18,17 +18,18 @@
 
   // 種目1つの推定MAX（セッションごとの最高・現在値＝直近3回の最高・自己ベスト・前の期間との差）
   function compute(d, L) {
-    const pts = [];
+    const pts = []; let nara = false;
     (d.workouts || []).forEach(w => {
       let best = null;
       (w.sets || []).forEach(s => {
         if (!L.names.includes(s.ex)) return;
+        if (s.nara) { nara = true; return; } // 慣らし（あと5回できる軽さ）から1RMを出すと大きく外れる → 計測不可として数えない
         const v = e1rm(s.weight, s.reps); if (v == null) return;
         if (!best || v > best.v) best = { t: w.done_at, v: r1(v), w: Number(s.weight), r: Number(s.reps) };
       });
       if (best) pts.push(best);
     });
-    if (!pts.length) return { pts, cur: null, best: null, delta: null, ratio: null, level: null };
+    if (!pts.length) return { pts, cur: null, best: null, delta: null, ratio: null, level: null, nara };
     const cur = Math.max(...pts.slice(-3).map(p => p.v));
     const best = pts.reduce((a, p) => (!a || p.v > a.v) ? p : a, null);
     const prev = pts.slice(-6, -3); const delta = prev.length ? r1(cur - Math.max(...prev.map(p => p.v))) : null;
@@ -53,7 +54,7 @@
       <div class="row between"><div class="ttl" style="font-weight:700">推定MAX（BIG3）</div><a class="btn small ghost" href="#maxes">詳しく</a></div>
       <div class="stats4" style="grid-template-columns:repeat(3,1fr);margin-top:8px">
         ${xs.map(x => `<div class="stat"><div class="n">${G.esc(x.L.nm)}</div><div class="v">${x.cur == null ? '—' : G.n1(x.cur)}<small>kg</small></div>
-          <div class="d">${x.cur == null ? '記録なし' : x.ratio != null ? `体重の${x.ratio}倍・${x.level}` : deltaHtml(x) || '&nbsp;'}</div></div>`).join('')}
+          <div class="d">${x.cur == null ? (x.nara ? '慣らし中' : '記録なし') : x.ratio != null ? `体重の${x.ratio}倍・${x.level}` : deltaHtml(x) || '&nbsp;'}</div></div>`).join('')}
       </div>
       <div class="muted" style="margin-top:6px;font-size:12px">1回だけ挙げられる重さの目安。${total != null ? `合計 ${G.n1(total)}kg${bw ? `（体重の${Math.round(total / bw * 100) / 100}倍）` : ''}。` : ''}${bw ? '' : '<a href="#maxes">体重を入れる</a>と体重比（相対筋力）が出ます。'}</div>
     </div>`;
@@ -71,7 +72,7 @@
       </div>
       ${xs.map(x => `<div class="card">
         <div class="row between"><div class="ttl" style="font-weight:700;font-size:17px">${G.esc(x.L.nm)}</div>${x.best ? `<span class="muted">自己ベスト ${G.n1(x.best.v)}kg（${G.fmtDate(x.best.t)}・${x.best.w}kg×${x.best.r}）</span>` : ''}</div>
-        ${x.cur == null ? '<p class="muted">まだ記録がありません。重量と回数（12回以下）を記録すると出ます。</p>' : `
+        ${x.cur == null ? (x.nara ? '<p class="muted">慣らしの記録だけ。わざと軽く止めているので、ここから最大は推定しない（計測不可）。慣らしでない記録が入ると出ます。</p>' : '<p class="muted">まだ記録がありません。重量と回数（12回以下）を記録すると出ます。</p>') : `
         <div class="row" style="align-items:baseline;gap:12px;margin:6px 0"><div class="bignum">${G.n1(x.cur)}<small>kg</small></div>${deltaHtml(x) ? `<span class="stat" style="padding:4px 8px">${deltaHtml(x)} <span class="muted">前の3回比</span></span>` : ''}</div>
         ${x.ratio != null ? `<div class="row" style="gap:8px;align-items:center"><span>体重の <b>${x.ratio}</b> 倍</span><span class="tag ${x.level === '入門' ? '' : 'ok'}">${x.level}</span><span class="muted" style="font-size:12px">次：${nextLevel(x)}</span></div>` : ''}
         ${chart(x.pts)}

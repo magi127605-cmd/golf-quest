@@ -29,7 +29,7 @@
   function start(opts) {
     const W = { v: 2, kind: opts.kind || 'custom', title: opts.title || 'ワークアウト', program_id: opts.program_id || null, day_key: opts.day_key ?? null, course: opts.course || null,
       startedAt: Date.now(), rest: null, exercises: (opts.exercises || []).map(e => ({
-        ex: e.ex, rest: e.rest || 120, mode: e.mode || 'rpe', note: e.note || '',
+        ex: e.ex, rest: e.rest || 120, mode: e.mode || 'rpe', note: e.note || '', nara: !!e.nara, cap: e.cap || null,
         sets: (e.sets && e.sets.length ? e.sets : [{}, {}, {}]).map(s => ({ weight: s.weight ?? '', reps: s.reps ?? '', rpe: null, done: false })),
       })) };
     G.S.wip.workout = W; G.save(); render();
@@ -48,7 +48,8 @@
       ${W.exercises.map((e, ei) => {
         const prev = previous(e.ex, W);
         return `<div class="card wo-ex" data-ei="${ei}">
-          <div class="row between"><div class="ttl" style="font-weight:700;font-size:17px">${G.esc(disp(e.ex))}</div><button class="btn small ghost ex-del">削除</button></div>
+          <div class="row between"><div class="ttl" style="font-weight:700;font-size:17px">${G.esc(disp(e.ex))}${e.nara ? ' <span class="tag">慣らし</span>' : ''}</div><button class="btn small ghost ex-del">削除</button></div>
+          ${e.nara ? `<div class="note">慣らし：重さを伸ばす日じゃない。<b>あと5回できる所で止める</b>（RPEは5＝余裕）。${e.cap ? `上限${e.cap}kg。` : ''}RPEを入れないと次の重さが決まらない。</div>` : ''}
           ${SUB[disp(e.ex)] && e.sets.some(s => !s.done) ? '<button class="btn small wide ex-sub">台が埋まってる → ダンベルに切り替え</button>' : ''}
           ${e.from && !e.sets.some(s => s.done) ? `<button class="btn small wide ex-back">台が空いた → ${G.esc(e.from.ex)}に戻す</button>` : ''}
           <input class="ex-note" placeholder="メモ（例：胸で1秒止める）" value="${G.esc(e.note)}">
@@ -58,7 +59,7 @@
               <td class="prev">${prev[si] ? `${prev[si].weight != null ? prev[si].weight + 'kg' : '—'}×${prev[si].reps}` : '—'}</td>
               <td><input class="s-w" type="number" inputmode="decimal" step="2.5" value="${s.weight}" placeholder="${prev[si] && prev[si].weight != null ? prev[si].weight : ''}"></td>
               <td><input class="s-r" type="number" inputmode="numeric" value="${s.reps}" placeholder="${prev[si] ? prev[si].reps : ''}"></td>
-              <td><select class="s-rpe"><option value="">-</option>${(e.mode === 'speed' ? [1, 2, 3, 4, 5] : [6, 7, 8, 9, 10]).map(v => `<option ${s.rpe === v ? 'selected' : ''} value="${v}">${v}</option>`).join('')}</select></td>
+              <td><select class="s-rpe"><option value="">-</option>${(e.mode === 'speed' ? [1, 2, 3, 4, 5] : e.nara ? [5, 6, 7, 8, 9, 10] : [6, 7, 8, 9, 10]).map(v => `<option ${s.rpe === v ? 'selected' : ''} value="${v}">${v}${e.nara && v === 5 ? ' 余裕' : ''}</option>`).join('')}</select></td>
               <td><button class="chk ${s.done ? 'on' : ''}">✓</button></td>
             </tr>`).join('')}
           </table>
@@ -164,7 +165,7 @@
   async function finish() {
     const W = G.S.wip.workout;
     const sets = [];
-    W.exercises.forEach(e => e.sets.filter(s => s.done).forEach(s => { const o = { ex: e.ex, reps: Number(s.reps) || 0, weight: s.weight === '' ? null : Number(s.weight) }; if (s.rpe != null) { if (e.mode === 'speed') o.speed = s.rpe; else o.rpe = s.rpe; } sets.push(o); }));
+    W.exercises.forEach(e => e.sets.filter(s => s.done).forEach(s => { const o = { ex: e.ex, reps: Number(s.reps) || 0, weight: s.weight === '' ? null : Number(s.weight) }; if (e.nara) o.nara = true; if (s.rpe != null) { if (e.mode === 'speed') o.speed = s.rpe; else o.rpe = s.rpe; } sets.push(o); }));
     if (!sets.length) { G.toast('完了（✓）したセットがありません'); return; }
     const notes = W.exercises.filter(e => e.note).map(e => `${disp(e.ex)}：${e.note}`).join(' ／ ');
     G.$('#finish').disabled = true;
